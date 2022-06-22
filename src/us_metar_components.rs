@@ -1,9 +1,8 @@
-//TODO: FINISH UNIT TESTS AND MOVE TRAIT TO SEPARATE FILE, PVT FIELDS & GET/SET
+//TODO: PVT FIELDS & GET/SET
 pub struct When {
-    pub day_of_month: i32,
-    pub zulu_time: i32, 
+    day_of_month: i32,
+    zulu_time: i32, 
 }
-
 impl When {
     pub fn new(info: String) -> Self {
         Self {
@@ -11,12 +10,18 @@ impl When {
             zulu_time: info[2..6].parse::<i32>().unwrap(),
         }
     }
+    pub fn get_day(&self) -> i32 {
+        self.day_of_month
+    }
+    pub fn get_time(&self) -> i32 {
+        self.zulu_time
+    }
 }
 
 pub struct Wind {
-    pub dir: i32,
-    pub spd: i32,
-    pub gust: Option<i32>,
+    dir: i32,
+    spd: i32,
+    gust: Option<i32>,
 }
 
 impl Wind {
@@ -35,12 +40,21 @@ impl Wind {
             }
         }
     }
+    pub fn get_dir(&self) -> i32 {
+        self.dir
+    }
+    pub fn get_spd(&self) -> i32 {
+        self.spd
+    }
+    pub fn get_gust(&self) -> Option<i32> {
+        self.gust
+    }
 }
 //TODO: figure out rvr and all that stuff, FIX THE UNWRAP MESS
 pub enum Visibility {
     Plus(i32),
     Exact(i32), 
-    Less(i32), //dubious
+    Less(i32), 
 }
 impl Visibility {
     pub fn new(info: String) -> Self {
@@ -72,9 +86,8 @@ impl Cloud_layer {
         }
     }
 } 
-
 pub struct Alt {
-   pub alt_inhg: f64,
+   alt_inhg: f64,
 }
 impl Alt { 
     pub fn new(info: String) -> Self {
@@ -82,10 +95,13 @@ impl Alt {
             alt_inhg: (info[1..].parse::<f64>().unwrap()) / 100.0,
         }
     }
+    pub fn get_alt_inhg(&self) -> f64 {
+        self.alt_inhg
+    }
 }
 pub struct Temps {
-    pub temp_celsius: i32,
-    pub dewpoint_celsius: i32
+    temp_celsius: i32,
+    dewpoint_celsius: i32
 }
 
 impl Temps {
@@ -113,69 +129,66 @@ impl Temps {
             _ => panic!("AAAA")
         }
     }
+    pub fn get_temp(&self) -> i32 {
+        self.temp_celsius
+    }
+    pub fn get_dewpoint(&self) -> i32 {
+        self.dewpoint_celsius
+    }
 }
 //needs a LOT of work - BR Missing
 pub enum Precip {
-    Ra(i32),
-    Dz(i32),
-    Fzra(i32),
-    Tsra(i32),
-    Sn(i32),
-    Sp(i32),
-    Blsn(i32),
+    Ra(String),
+    Dz(String),
+    Fzra(String),
+    Tsra(String),
+    Sn(String),
+    Sp(String),
+    Blsn(String),
 }
 impl Precip {
     pub fn new(info: String) -> Self {
         if(&info[0..1] == "+") {
             match &info[1..] {
-                "DZ" => Precip::Dz(1),
-                "FZRA" => Precip::Fzra(1),
-                "TSRA" => Precip::Tsra(1),
-                "SN" => Precip::Sn(1),
-                "SP" => Precip::Sp(1),
-                "BLSN" => Precip::Blsn(1),
-                _ => Precip::Ra(1),
+                "DZ" => Precip::Dz(String::from("Heavy")),
+                "FZRA" => Precip::Fzra(String::from("Heavy")),
+                "TSRA" => Precip::Tsra(String::from("Heavy")),
+                "SN" => Precip::Sn(String::from("Heavy")),
+                "SP" => Precip::Sp(String::from("Heavy")),
+                "BLSN" => Precip::Blsn(String::from("Heavy")),
+                _ => Precip::Ra(String::from("Heavy")),
             }
         } else if(&info[0..1] == "-") {
             match &info[1..] {
-                "DZ" => Precip::Dz(-1),
-                "FZRA" => Precip::Fzra(-1),
-                "TSRA" => Precip::Tsra(-1),
-                "SN" => Precip::Sn(-1),
-                "SP" => Precip::Sp(-1),
-                "BLSN" => Precip::Blsn(-1),
-                _ => Precip::Ra(-1),
+                "DZ" => Precip::Dz(String::from("Light")),
+                "FZRA" => Precip::Fzra(String::from("Light")),
+                "TSRA" => Precip::Tsra(String::from("Light")),
+                "SN" => Precip::Sn(String::from("Light")),
+                "SP" => Precip::Sp(String::from("Light")),
+                "BLSN" => Precip::Blsn(String::from("Light")),
+                _ => Precip::Ra(String::from("Light")),
             }
         } else {
             match &info[0..] {
-                "DZ" => Precip::Dz(0),
-                "FZRA" => Precip::Fzra(0),
-                "TSRA" => Precip::Tsra(0),
-                "SN" => Precip::Sn(0),
-                "SP" => Precip::Sp(0),
-                "BLSN" => Precip::Blsn(0),
-                _ => Precip::Ra(0),
+                "DZ" => Precip::Dz(String::from("")),
+                "FZRA" => Precip::Fzra(String::from("")),
+                "TSRA" => Precip::Tsra(String::from("")),
+                "SN" => Precip::Sn(String::from("")),
+                "SP" => Precip::Sp(String::from("")),
+                "BLSN" => Precip::Blsn(String::from("")),
+                _ => Precip::Ra(String::from("")),
             }
         }
     }
-    // MAKE THIS LESS HACKY AND MORE RUST-like store intensity as string in enum
-    pub fn get_intensity(&self) -> String {
-        let translate = |num: i32| -> String {
-            match num {
-                -1 => String::from("Light"),
-                0 => String::from("Moderate"),
-                1 => String::from("Heavy"),
-                _ => String::new(),
-            }
-        };
+    pub fn get_intensity(&self) -> &String {
         match self {
-            Precip::Dz(a) => translate(*a),
-            Precip::Fzra(b) => translate(*b),
-            Precip::Tsra(c) => translate(*c),
-            Precip::Sn(d) => translate(*d),
-            Precip::Sp(e) => translate(*e),
-            Precip::Blsn(f) => translate(*f),
-            Precip::Ra(g) => translate(*g),
+            Precip::Dz(a) => a,
+            Precip::Fzra(b) => b,
+            Precip::Tsra(c) => c,
+            Precip::Sn(d) => d,
+            Precip::Sp(e) => e,
+            Precip::Blsn(f) => f,
+            Precip::Ra(g) => g,
         }
     }
 }
@@ -220,9 +233,9 @@ mod tests {
         let a = Precip::new(String::from("+RA"));
         let b = Precip::new(String::from("BLSN"));
         let c = Precip::new(String::from("-FZRA"));
-        assert_eq!(a.get_intensity(), 1);
-        assert_eq!(b.get_intensity(), 0);
-        assert_eq!(c.get_intensity(), -1);
+        assert_eq!(a.get_intensity(), &String::from("Heavy"));
+        assert_eq!(b.get_intensity(), &String::from(""));
+        assert_eq!(c.get_intensity(), &String::from("Light"));
     }
     #[test]
     fn check_visibility() {

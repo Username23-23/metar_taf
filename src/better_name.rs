@@ -4,26 +4,26 @@ pub trait Name {
 }
 impl Name for When {
     fn name_needed(&self) -> String {
-        let hour = (self.zulu_time / 100);
-        let minute = self.zulu_time - (hour * 100);
-        format!("Taken on the {}th day of the current month at {}:{} UTC\n", self.day_of_month.to_string(), hour.to_string(), minute.to_string())
+        let hour = (self.get_time() / 100);
+        let minute = self.get_time() - (hour * 100);
+        format!("Taken on the {}th day of the current month at {}:{} UTC\n", self.get_day(), hour, minute)
     }
 } 
 impl Name for Wind {
     fn name_needed(&self) -> String {
-        if let Some(add) = self.gust {
-            format!("Wind blowing from {} degrees at {} knots, with gusts of an additional {} knots \n", self.dir.to_string(), self.spd.to_string(), add)
+        if let Some(add) = self.get_gust() {
+            format!("Wind blowing from {} degrees at {} knots, with gusts of an additional {} knots \n", self.get_dir(), self.get_spd(), add)
         } else {
-            format!("Wind blowing from {} degrees at {} knots\n", self.dir.to_string(), self.spd.to_string())
+            format!("Wind blowing from {} degrees at {} knots\n", self.get_dir(), self.get_spd())
         }
     }
 }
 impl Name for Visibility {
     fn name_needed(&self) -> String {
         match self {
-            Visibility::Plus(a) => format!("More than {} statute miles\n", a.to_string()),
-            Visibility::Exact(b) => format!("{} statute miles\n", b.to_string()),
-            Visibility::Less(c) => format!("Less than {} statute miles\n", c.to_string()),
+            Visibility::Plus(a) => format!("More than {} statute miles\n", a),
+            Visibility::Exact(b) => format!("{} statute miles\n", b),
+            Visibility::Less(c) => format!("Less than {} statute miles\n", c),
             _ => String::new(),
         }
     }
@@ -42,12 +42,12 @@ impl Name for Cloud_layer {
 }
 impl Name for Alt {
     fn name_needed(&self) -> String {
-        format!("Altimiter: {} inHg\n", self.alt_inhg.to_string())
+        format!("Altimiter: {} inHg\n", self.get_alt_inhg())
     }    
 }
 impl Name for Temps {
     fn name_needed(&self) -> String {
-        format!("Temperature: {} Celsius\nDewpoint: {} Celsius\n", self.temp_celsius.to_string(), self.dewpoint_celsius.to_string())
+        format!("Temperature: {} Celsius\nDewpoint: {} Celsius\n", self.get_temp(), self.get_dewpoint())
     }    
 }
 impl Name for Precip {
