@@ -63,6 +63,24 @@ impl Name for Precip {
         }
     }   
 }
+// extremely messy on borrowing
+impl Name for Rvr {
+    fn name_needed(&self) -> String {
+        let handle_visib = |a: &Visibility| -> String {
+            match *a {
+                Visibility::Plus(a) => format!("More than {} ft", a),
+                Visibility::Exact(b) => format!("{} ft", b),
+                Visibility::Less(c) => format!("Less than {} ft", c),
+                _ => String::new(),
+            }
+        };
+        if let Some(v) = self.get_upper_bound() {
+            format!("RVR for Runway {}: between {} and {} ft", self.get_rwy(), handle_visib(self.get_vis()), handle_visib(&v))
+        } else {
+            format!("RVR for Runway {}: {} ft", self.get_rwy(), handle_visib(self.get_vis()))
+        }
+    }
+}
 mod tests {
-    
+    //STILL WAITING
 }

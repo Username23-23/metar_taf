@@ -66,6 +66,13 @@ impl Visibility {
             Visibility::Exact(info[0..info.find("S").unwrap()].parse::<i32>().unwrap())
         }
     }
+    pub fn visibility_for_rvr(info: String) -> Self {
+        match &info[0..1] {
+            "M" => Visibility::Less(info[info.find("M").unwrap() + 1..].parse::<i32>().unwrap()),
+            "P" => Visibility::Plus(info[info.find("P").unwrap() + 1..].parse::<i32>().unwrap()),
+            _ => Visibility::Exact(info[0..].parse::<i32>().unwrap()),
+        }
+    }
 }
 pub enum Cloud_layer {
     few(i32),
@@ -103,7 +110,6 @@ pub struct Temps {
     temp_celsius: i32,
     dewpoint_celsius: i32
 }
-
 impl Temps {
     pub fn new(info: String) -> Self {
         match info.len() {
@@ -136,7 +142,42 @@ impl Temps {
         self.dewpoint_celsius
     }
 }
-//needs a LOT of work - BR Missing
+pub struct Rvr {
+    rwy: String,
+    vis: Visibility,
+    upper_bound: Option<Visibility>,
+}
+impl Rvr {
+    pub fn new(info: String) -> Self {
+        // look below for better solution to everwhere there's unwrap
+        let slash = info.find("/").expect("Couldn't parse rvr measurement: \"/\" not found where expected");
+        let f = info.find("F").expect("Couldn't parse rvr measurement: \"FT\" not found where expected");
+        let v = info.find("V");
+        if let Some(i_v) = v {
+            Self {
+                rwy: String::from(&info[1..slash]),
+                vis: Visibility::visibility_for_rvr(String::from(&info[slash + 1..i_v])),
+                upper_bound: Some(Visibility::visibility_for_rvr(String::from(&info[i_v + 1..f]))), 
+            }
+        } else {
+            Self {
+                rwy: String::from(&info[1..slash]),
+                vis: Visibility::visibility_for_rvr(String::from(&info[slash + 1..f])),
+                upper_bound: None,
+            }
+        }
+    }
+    pub fn get_rwy(&self) -> &String {
+        &self.rwy
+    }
+    pub fn get_vis(&self) -> &Visibility {
+        &self.vis
+    }
+    pub fn get_upper_bound(&self) -> &Option<Visibility> {
+        &self.upper_bound
+    }
+}
+//needs complete overhaul - BR Missing
 pub enum Precip {
     Ra(String),
     Dz(String),
@@ -201,6 +242,7 @@ mod tests {
         assert_eq!(w.zulu_time, 1314);
     }
     #[test]
+    //needs rewrite
     fn check_wind() {
         let w = Wind::new(String::from("08717G24KT"));
         assert_eq!(w.dir, 087);
@@ -239,7 +281,6 @@ mod tests {
     }
     #[test]
     fn check_visibility() {
-        //REMINDER THAT RVR ISNT IMPLEMENTED ONLY REGULAR VISIB
         let a = Visibility::new(String::from("9SM"));
         let b = Visibility::new(String::from("M6SM"));
         let c = Visibility::new(String::from("P4SM"));
@@ -255,6 +296,7 @@ mod tests {
         assert_eq!(5, get_range(c));
     }
     #[test]
+    //needs rewrite
     fn check_clouds() {
         let a = Cloud_layer::new(String::from("SCT036"));
         assert_eq!({
