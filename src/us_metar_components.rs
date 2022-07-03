@@ -1,4 +1,5 @@
-//TODO: PVT FIELDS & GET/SET
+//TODO: USE RANGE FOR RVR 
+pub use std::ops::Range;
 pub struct When {
     day_of_month: i32,
     zulu_time: i32, 
@@ -19,38 +20,39 @@ impl When {
 }
 
 pub struct Wind {
-    dir: i32,
-    spd: i32,
-    gust: Option<i32>,
+    pub spd: Range<u32>,
+    pub dir: Range<u32>,
 }
-
+//TODO: Better error handling, make repetitive calls more efficient
 impl Wind {
     pub fn new(info: String) -> Self {
-        if info.len() <= 7 {
-            Self {
-                dir: info[..3].parse::<i32>().unwrap(),
-                spd: info[3..5].parse::<i32>().unwrap(),
-                gust: None, 
+        let d = info[..3].parse::<u32>(); // err here means dir was "VRB"
+        let sp = info.find(" "); // some here means variable dir was included
+        let g = info.find("G"); // some here means there is gust
+        let dir1: Range<u32>;
+        let spd1: Range<u32>;
+        if let Ok(direction) = d {
+            if let Some(i_s) = sp {
+                dir1 = (info[i_s + 1..info.find("V").unwrap()].parse::<u32>().expect("one")..info[info.find("V").unwrap() + 1..].parse::<u32>().expect("two"))
+            } else {
+                dir1 = (info[0..3].parse::<u32>().unwrap()..info[0..3].parse::<u32>().unwrap())
             }
         } else {
-            Self {
-                dir: info[..3].parse::<i32>().unwrap(),
-                spd: info[3..5].parse::<i32>().unwrap(),
-                gust: Some(info[6..8].parse::<i32>().unwrap()),
-            }
+            dir1 = (999..999);
         }
-    }
-    pub fn get_dir(&self) -> i32 {
-        self.dir
-    }
-    pub fn get_spd(&self) -> i32 {
-        self.spd
-    }
-    pub fn get_gust(&self) -> Option<i32> {
-        self.gust
+        if let Some(gust) = g {
+            spd1 = (info[3..gust].parse::<u32>().expect("1")..info[gust + 1..info.find("K").unwrap()].parse::<u32>().expect("2"));
+        } else {
+            spd1 = (info[3..info.find("K").unwrap()].parse::<u32>().unwrap()..info[3..info.find("K").unwrap()].parse::<u32>().unwrap());
+        }
+        Self {
+            spd: spd1,
+            dir: dir1,
+        }
     }
 }
 //TODO: figure out rvr and all that stuff, FIX THE UNWRAP MESS
+#[derive(Debug)]
 pub enum Visibility {
     Plus(i32),
     Exact(i32), 
@@ -75,21 +77,21 @@ impl Visibility {
     }
 }
 pub enum Cloud_layer {
-    few(i32),
-    sct(i32),
-    bkn(i32),
-    ovc(i32),
-    clr_skc(i32),
+    Few(i32),
+    Sct(i32),
+    Bkn(i32),
+    Ovc(i32),
+    ClrSkc(i32),
 }
-//dummy number for clr_skc
+//dummy number for ClrSkc
 impl Cloud_layer {
     pub fn new(info: String) -> Self {
         match &info[0..3] {
-            "OVC" => Cloud_layer::ovc(info[3..6].parse::<i32>().unwrap() * 100),
-            "BKN" => Cloud_layer::bkn(info[3..6].parse::<i32>().unwrap() * 100),
-            "SCT" => Cloud_layer::sct(info[3..6].parse::<i32>().unwrap() * 100),
-            "FEW" => Cloud_layer::few(info[3..6].parse::<i32>().unwrap() * 100),
-            _ => Cloud_layer::clr_skc(0),
+            "OVC" => Cloud_layer::Ovc(info[3..6].parse::<i32>().unwrap() * 100),
+            "BKN" => Cloud_layer::Bkn(info[3..6].parse::<i32>().unwrap() * 100),
+            "SCT" => Cloud_layer::Sct(info[3..6].parse::<i32>().unwrap() * 100),
+            "FEW" => Cloud_layer::Few(info[3..6].parse::<i32>().unwrap() * 100),
+            _ => Cloud_layer::ClrSkc(0),
         }
     }
 } 
@@ -242,16 +244,19 @@ mod tests {
         assert_eq!(w.zulu_time, 1314);
     }
     #[test]
-    //needs rewrite
     fn check_wind() {
-        let w = Wind::new(String::from("08717G24KT"));
-        assert_eq!(w.dir, 087);
-        assert_eq!(w.spd, 17);
-        assert_eq!(w.gust, Some(24));
-        let no = Wind::new(String::from("08717KT"));
-        assert_eq!(no.dir, 087);
-        assert_eq!(no.spd, 17);
-        assert_eq!(no.gust, None);
+        let a = Wind::new(String::from("08717G24KT"));
+        assert_eq!(a.spd, (17..24));
+        assert_eq!(a.dir, (087..087));
+        let b = Wind::new(String::from("08717KT"));
+        assert_eq!(b.spd, (17..17));
+        assert_eq!(b.dir, (087..087));
+        let c = Wind::new(String::from("08717G24KT 086V088"));
+        assert_eq!(c.spd, (17..24));
+        assert_eq!(c.dir, (086..088));
+        let d = Wind::new(String::from("VRB03G05KT"));
+        assert_eq!(d.spd, (3..5));
+        assert_eq!(d.dir, (999..999));
     }
     #[test]
     fn check_alt() {
@@ -301,9 +306,30 @@ mod tests {
         let a = Cloud_layer::new(String::from("SCT036"));
         assert_eq!({
             match a {
-                Cloud_layer::sct(b) => b,
+                Cloud_layer::Sct(b) => b,
                 _ => 0
             }
         }, 3600);
+    }
+    #[test]
+    fn check_rvr() {
+        let t_v = |a: Visibility| -> String {
+            match a {
+                Visibility::Plus(e) => format!("+{}", e),
+                Visibility::Exact(f) => format!("{}", f),
+                Visibility::Less(g) => format!("-{}", g),
+            }
+        };
+        let a = Rvr::new(String::from("R05L/1600FT"));
+        assert_eq!(a.rwy, String::from("05L"));
+        assert_eq!(t_v(a.vis), String::from("1600"));
+        let b = Rvr::new(String::from("R27/1500V1700FT"));
+        assert_eq!(b.rwy, String::from("27"));
+        assert_eq!(t_v(b.vis), String::from("1500"));
+        assert_eq!(t_v(b.upper_bound.unwrap()), String::from("1700"));
+        let c = Rvr::new(String::from("R31/M1400VP1600FT"));
+        assert_eq!(c.rwy, String::from("31"));
+        assert_eq!(t_v(c.vis), String::from("-1400"));
+        assert_eq!(t_v(c.upper_bound.unwrap()), String::from("+1600"));
     }
 }
