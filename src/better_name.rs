@@ -15,7 +15,7 @@ impl Name for Wind {
             if(a.is_empty()) {
                 match a.start {
                     999 => String::from("variable"),
-                    _ => format!("{} degrees", a.start)
+                    _ => format!("{} degrees", a.start) // example of steps that are introduced by storing in a struct field
                 }
             } else {
                 format!("varying between {} and {} degrees", a.start, a.end)
@@ -63,20 +63,71 @@ impl Name for Temps {
         format!("Temperature: {} Celsius\nDewpoint: {} Celsius\n", self.get_temp(), self.get_dewpoint())
     }    
 }
-impl Name for Precip {
+impl Name for Weather {
     fn name_needed(&self) -> String {
-        match self {
-            Precip::Dz(_) => format!("{} Drizzle\n", self.get_intensity()),
-            Precip::Ra(_) => format!("{} Rain\n", self.get_intensity()),
-            Precip::Tsra(_) => format!("{} Rain associated with thunderstorm\n", self.get_intensity()),
-            Precip::Fzra(_) => format!("{} Freezing Rain\n", self.get_intensity()),
-            Precip::Sn(_) => format!("{} Snow\n", self.get_intensity()),
-            Precip::Sp(_) => format!("{} Snow Pellets\n", self.get_intensity()),
-            Precip::Blsn(_) => format!("{} Blowing snow\n", self.get_intensity()),
+        let mut s = String::new();
+        match self.intensity {
+            0 => (),
+            1 => s.push_str("Light"),
+            2 => s.push_str("Moderate"),
+            3 => s.push_str("Heavy"), 
+            _ => (),
         }
+        match self.proximity {
+            0 => (),
+            1 => s.push_str("In the vicinity"),
+            _ => (),
+        }
+        match self.desc {
+            0 => (),
+            1 => s.push_str("Shallow"),
+            2 => s.push_str("Partial"),
+            3 => s.push_str("Patches"),
+            4 => s.push_str("Low Drifting"),
+            5 => s.push_str("Blowing"), 
+            6 => s.push_str("Showers"),
+            7 => s.push_str("Thunderstorm"),
+            8 => s.push_str("Freezing"), 
+            _ => (),
+        } 
+        match self.precip {
+            0 => (), 
+            1 => s.push_str("Drizzle"),
+            2 => s.push_str("Rain"),
+            3 => s.push_str("Snow"),
+            4 => s.push_str("Snow Grains"),
+            5 => s.push_str("Ice Crystals"), 
+            6 => s.push_str("Ice Pellets"),
+            7 => s.push_str("Hail"),
+            8 => s.push_str("Snow Pellets"),
+            9 => s.push_str("Unknown Precipitation"),
+            _ => (),
+        }
+        match self.obscuration {
+            0 => (),
+            1 => s.push_str("Mist"),
+            2 => s.push_str("Fog"),
+            3 => s.push_str("Smoke"),
+            4 => s.push_str("Volcanic Ash"),
+            5 => s.push_str("Widespread dust"), 
+            6 => s.push_str("Sand"),
+            7 => s.push_str("Haze"),
+            8 => s.push_str("Spray"), 
+            _ => (),
+        }
+        match self.misc {
+            0 => (), 
+            1 => s.push_str("Sand Whirls"),
+            2 => s.push_str("Squalls"),
+            3 => s.push_str("Tornado"),
+            4 => s.push_str("Sandstorm"),
+            5 => s.push_str("Duststorm"), 
+            _ => (),
+        }
+        s
     }   
 }
-// extremely messy on borrowing; solution: look at wind
+//TODO: extremely messy on borrowing; solution: look at wind
 impl Name for Rvr {
     fn name_needed(&self) -> String {
         let handle_visib = |a: &Visibility| -> String {
@@ -96,6 +147,7 @@ impl Name for Rvr {
 }
 mod tests {
     use crate::*;
+    //paused- these unit tests might be closer to what tests should look like after refactor
     #[test]
     fn when() {
         let w = When::new(String::from("291314Z"));

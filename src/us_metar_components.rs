@@ -1,4 +1,5 @@
-//TODO: USE RANGE FOR RVR 
+//TODO: cleanup- reduce repetitive calls, better on borrowing/refs, better error handling
+//TODO: major refactor- do away with structs/enums, combine name_needed and constructors into one fn that returns what name_needed currently returns
 pub use std::ops::Range;
 pub struct When {
     day_of_month: i32,
@@ -18,12 +19,10 @@ impl When {
         self.zulu_time
     }
 }
-
 pub struct Wind {
     pub spd: Range<u32>,
     pub dir: Range<u32>,
 }
-//TODO: Better error handling, make repetitive calls more efficient
 impl Wind {
     pub fn new(info: String) -> Self {
         let d = info[..3].parse::<u32>(); // err here means dir was "VRB"
@@ -51,7 +50,7 @@ impl Wind {
         }
     }
 }
-//TODO: figure out rvr and all that stuff, FIX THE UNWRAP MESS
+//TODO: fractions
 #[derive(Debug)]
 pub enum Visibility {
     Plus(i32),
@@ -76,6 +75,7 @@ impl Visibility {
         }
     }
 }
+//TODO: vertical visib, clr/skc
 pub enum Cloud_layer {
     Few(i32),
     Sct(i32),
@@ -83,7 +83,6 @@ pub enum Cloud_layer {
     Ovc(i32),
     ClrSkc(i32),
 }
-//dummy number for ClrSkc
 impl Cloud_layer {
     pub fn new(info: String) -> Self {
         match &info[0..3] {
@@ -122,7 +121,6 @@ impl Temps {
                 }
             },
             6 => {  
-                //bc temp cant be neg w pos dewpoint 
                 Self {
                     temp_celsius: info[0..2].parse::<i32>().unwrap(),
                     dewpoint_celsius: info[4..].parse::<i32>().unwrap() - (2 * info[4..].parse::<i32>().unwrap()),
@@ -144,6 +142,7 @@ impl Temps {
         self.dewpoint_celsius
     }
 }
+//TODO: use range for rvr
 pub struct Rvr {
     rwy: String,
     vis: Visibility,
@@ -179,64 +178,85 @@ impl Rvr {
         &self.upper_bound
     }
 }
-//needs complete overhaul - BR Missing
-pub enum Precip {
-    Ra(String),
-    Dz(String),
-    Fzra(String),
-    Tsra(String),
-    Sn(String),
-    Sp(String),
-    Blsn(String),
+pub struct Weather {
+    intensity: u8,
+    proximity: u8,
+    desc: u8,
+    precip: u8,
+    obscuration: u8,
+    misc: u8,
 }
-impl Precip {
+impl Weather {
     pub fn new(info: String) -> Self {
-        if(&info[0..1] == "+") {
-            match &info[1..] {
-                "DZ" => Precip::Dz(String::from("Heavy")),
-                "FZRA" => Precip::Fzra(String::from("Heavy")),
-                "TSRA" => Precip::Tsra(String::from("Heavy")),
-                "SN" => Precip::Sn(String::from("Heavy")),
-                "SP" => Precip::Sp(String::from("Heavy")),
-                "BLSN" => Precip::Blsn(String::from("Heavy")),
-                _ => Precip::Ra(String::from("Heavy")),
-            }
-        } else if(&info[0..1] == "-") {
-            match &info[1..] {
-                "DZ" => Precip::Dz(String::from("Light")),
-                "FZRA" => Precip::Fzra(String::from("Light")),
-                "TSRA" => Precip::Tsra(String::from("Light")),
-                "SN" => Precip::Sn(String::from("Light")),
-                "SP" => Precip::Sp(String::from("Light")),
-                "BLSN" => Precip::Blsn(String::from("Light")),
-                _ => Precip::Ra(String::from("Light")),
-            }
-        } else {
-            match &info[0..] {
-                "DZ" => Precip::Dz(String::from("")),
-                "FZRA" => Precip::Fzra(String::from("")),
-                "TSRA" => Precip::Tsra(String::from("")),
-                "SN" => Precip::Sn(String::from("")),
-                "SP" => Precip::Sp(String::from("")),
-                "BLSN" => Precip::Blsn(String::from("")),
-                _ => Precip::Ra(String::from("")),
-            }
+        let mut i: u8 = 0;
+        let mut po: u8 = 0;
+        let mut d: u8 = 0;
+        let mut pr: u8 = 0;
+        let mut ob: u8 = 0;
+        let mut m: u8 = 0;
+        let mut current_index = 0;
+        match &info[0..1] {
+            "+" => {
+                i = 3;
+                current_index = 1;
+            },
+            "-" => {
+                i = 1;
+                current_index = 1;
+            },
+            _ => i = 2,
         }
-    }
-    pub fn get_intensity(&self) -> &String {
-        match self {
-            Precip::Dz(a) => a,
-            Precip::Fzra(b) => b,
-            Precip::Tsra(c) => c,
-            Precip::Sn(d) => d,
-            Precip::Sp(e) => e,
-            Precip::Blsn(f) => f,
-            Precip::Ra(g) => g,
+        //TODO: make match more efficient
+        while current_index < info.len() {
+            match &info[current_index..=current_index + 1] {
+                "VC" => po = 1,
+                "MI" => d = 1,
+                "PR" => d = 2,
+                "BC" => d = 3,
+                "DR" => d = 4,
+                "BL" => d = 5,
+                "SH" => d = 6,
+                "TS" => d = 7, 
+                "FZ" => d = 8,
+                "DZ" => pr = 1,
+                "RA" => pr = 2,
+                "SN" => pr = 3,
+                "SG" => pr = 4,
+                "IC" => pr = 5,
+                "PL" => pr = 6,
+                "GR" => pr = 7,
+                "GS" => pr = 8,
+                "UP" => pr = 9,
+                "BR" => ob = 1,
+                "FG" => ob = 2,
+                "FU" => ob = 3,
+                "VA" => ob = 4,
+                "DU" => ob = 5, 
+                "SA" => ob = 6,
+                "HZ" => ob = 7,
+                "PY" => ob = 8,
+                "PO" => misc = 1,
+                "SQ" => misc = 2,
+                "FC" => misc = 3,
+                "SS" => misc = 4,
+                "DS" => misc = 5, 
+                _ => (),
+            }
+            current_index += 2;
+        }
+        Self {
+            intensity: i,
+            proximity: po,
+            desc: d,
+            precip: pr,
+            obscuration: ob,
+            misc: m,
         }
     }
 }
 mod tests {
     use crate::us_metar_components::*;
+    //paused due to upcoming refactor
     #[test]
     fn check_when() {
         let w = When::new(String::from("291314Z"));
@@ -276,13 +296,8 @@ mod tests {
         assert_eq!(c.dewpoint_celsius, -10);
     }
     #[test]
-    fn check_precip() {
-        let a = Precip::new(String::from("+RA"));
-        let b = Precip::new(String::from("BLSN"));
-        let c = Precip::new(String::from("-FZRA"));
-        assert_eq!(a.get_intensity(), &String::from("Heavy"));
-        assert_eq!(b.get_intensity(), &String::from(""));
-        assert_eq!(c.get_intensity(), &String::from("Light"));
+    fn check_weather() {
+
     }
     #[test]
     fn check_visibility() {
