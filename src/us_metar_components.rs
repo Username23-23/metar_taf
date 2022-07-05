@@ -1,22 +1,14 @@
 //TODO: cleanup- reduce repetitive calls, better on borrowing/refs, better error handling
-//TODO: major refactor- do away with structs/enums, combine name_needed and constructors into one fn that returns what name_needed currently returns
 pub use std::ops::Range;
-pub struct When {
-    day_of_month: i32,
-    zulu_time: i32, 
+pub trait Parser {
+    fn parse(info: String) -> String;
 }
-impl When {
-    pub fn new(info: String) -> Self {
-        Self {
-            day_of_month: info[..2].parse::<i32>().unwrap(),
-            zulu_time: info[2..6].parse::<i32>().unwrap(),
-        }
-    }
-    pub fn get_day(&self) -> i32 {
-        self.day_of_month
-    }
-    pub fn get_time(&self) -> i32 {
-        self.zulu_time
+pub struct When;
+impl Parser for When {
+    fn parse(info: String) -> String {
+        let day = info[..2].parse::<u32>().expect("Error parsing day METAR was observed");
+        let time = info[2..6].parse::<u32>().expect("Error parsing time METAR was observed");
+        format!("Taken on the {}th day of the current month at {}:{} UTC\n", day, time / 100, self.get_time() - (hour * 100))
     }
 }
 pub struct Wind {
@@ -25,6 +17,7 @@ pub struct Wind {
 }
 impl Wind {
     pub fn new(info: String) -> Self {
+        let parsed = String::new();
         let d = info[..3].parse::<u32>(); // err here means dir was "VRB"
         let sp = info.find(" "); // some here means variable dir was included
         let g = info.find("G"); // some here means there is gust
@@ -32,9 +25,9 @@ impl Wind {
         let spd1: Range<u32>;
         if let Ok(direction) = d {
             if let Some(i_s) = sp {
-                dir1 = (info[i_s + 1..info.find("V").unwrap()].parse::<u32>().expect("one")..info[info.find("V").unwrap() + 1..].parse::<u32>().expect("two"))
+                dir1 = (info[i_s + 1..info.find("V").unwrap()].parse::<u32>().expect("one")..info[info.find("V").unwrap() + 1..].parse::<u32>().expect("two"));
             } else {
-                dir1 = (info[0..3].parse::<u32>().unwrap()..info[0..3].parse::<u32>().unwrap())
+                dir1 = (info[0..3].parse::<u32>().unwrap()..info[0..3].parse::<u32>().unwrap());
             }
         } else {
             dir1 = (999..999);
@@ -50,6 +43,7 @@ impl Wind {
         }
     }
 }
+impl Parser
 //TODO: fractions
 #[derive(Debug)]
 pub enum Visibility {
@@ -76,70 +70,49 @@ impl Visibility {
     }
 }
 //TODO: vertical visib, clr/skc
-pub enum Cloud_layer {
-    Few(i32),
-    Sct(i32),
-    Bkn(i32),
-    Ovc(i32),
-    ClrSkc(i32),
-}
-impl Cloud_layer {
-    pub fn new(info: String) -> Self {
-        match &info[0..3] {
-            "OVC" => Cloud_layer::Ovc(info[3..6].parse::<i32>().unwrap() * 100),
-            "BKN" => Cloud_layer::Bkn(info[3..6].parse::<i32>().unwrap() * 100),
-            "SCT" => Cloud_layer::Sct(info[3..6].parse::<i32>().unwrap() * 100),
-            "FEW" => Cloud_layer::Few(info[3..6].parse::<i32>().unwrap() * 100),
-            _ => Cloud_layer::ClrSkc(0),
+pub struct CloudLayer;
+impl Parser for CloudLayer {
+    fn parse(info: String) -> String {
+        let parsed = String::new();
+        let height: u32 = info[3..6].parse::<u32>().expect("Couldn't parse cloud layer height") * 100; //what happens here if clr/skc (index out of bounds)
+        match &info[0..=2] {
+            "OVC" => parsed += format!("Overcast clouds at {} ft", height),
+            "BKN" => parsed += format!("Broken clouds at {} ft", height),
+            "SCT" => parsed += format!("Scattered clouds at {} ft", height),
+            "FEW" => parsed += format!("Few clouds at {} ft", height),
+            _ => parsed.push_str("Clear skies"),
         }
+        parsed
     }
 } 
-pub struct Alt {
-   alt_inhg: f64,
-}
-impl Alt { 
-    pub fn new(info: String) -> Self {
-        Self {
-            alt_inhg: (info[1..].parse::<f64>().unwrap()) / 100.0,
-        }
-    }
-    pub fn get_alt_inhg(&self) -> f64 {
-        self.alt_inhg
+pub struct Alt;
+impl Parser for Alt {
+    fn parse(info: String) -> String {
+        let alt =  (info[1..].parse::<f64>().expect("Couldn't parse altimeter setting")) / 100.0
+        format!("Altimiter: {} inHg\n", alt)
     }
 }
-pub struct Temps {
-    temp_celsius: i32,
-    dewpoint_celsius: i32
-}
-impl Temps {
-    pub fn new(info: String) -> Self {
+pub struct Temps;
+impl Parser for Temps {
+    fn parse(info: String) -> String {
+        let temp_celsius: i32;
+        let dewpoint_celsius: i32;
         match info.len() {
             5 => {
-                Self {
-                    temp_celsius: info[..2].parse::<i32>().unwrap(),
-                    dewpoint_celsius: info[3..].parse::<i32>().unwrap(),
-                }
+                temp_celsius = info[..2].parse::<i32>().expect("Couldn't parse temperature");
+                dewpoint_celsius = info[3..].parse::<i32>().expect("Couldn't parse dewpoint");
             },
             6 => {  
-                Self {
-                    temp_celsius: info[0..2].parse::<i32>().unwrap(),
-                    dewpoint_celsius: info[4..].parse::<i32>().unwrap() - (2 * info[4..].parse::<i32>().unwrap()),
-                }
+                temp_celsius = info[0..2].parse::<i32>().expect("Couldn't parse temperature");
+                dewpoint_celsius = info[4..].parse::<i32>().expect("Couldn't parse dewpoint") - (2 * info[4..].parse::<i32>().expect("Couldn't parse dewpoint"));
             },
             7 => {
-                Self {
-                    temp_celsius: info[1..3].parse::<i32>().unwrap() - (2 * info[1..3].parse::<i32>().unwrap()),
-                    dewpoint_celsius: info[5..].parse::<i32>().unwrap() - (2 * info[5..].parse::<i32>().unwrap()),
-                }
+                temp_celsius = info[1..3].parse::<i32>().expect("Couldn't parse temperature")- (2 * info[1..3].parse::<i32>().expect("Couldn't parse temperature"));
+                dewpoint_celsius = info[5..].parse::<i32>().expect("Couldn't parse dewpoint") - (2 * info[5..].parse::<i32>().expect("Couldn't parse dewpoint"));
             },
-            _ => panic!("AAAA")
+            _ => panic!("Unexpected length for temperature/dewpoint measurement")
         }
-    }
-    pub fn get_temp(&self) -> i32 {
-        self.temp_celsius
-    }
-    pub fn get_dewpoint(&self) -> i32 {
-        self.dewpoint_celsius
+        format!("Temperature: {} Celsius\nDewpoint: {} Celsius\n", temp_celsius, dewpoint_celsius)
     }
 }
 //TODO: use range for rvr
@@ -150,7 +123,6 @@ pub struct Rvr {
 }
 impl Rvr {
     pub fn new(info: String) -> Self {
-        // look below for better solution to everwhere there's unwrap
         let slash = info.find("/").expect("Couldn't parse rvr measurement: \"/\" not found where expected");
         let f = info.find("F").expect("Couldn't parse rvr measurement: \"FT\" not found where expected");
         let v = info.find("V");
@@ -257,7 +229,7 @@ impl Weather {
 mod tests {
     use crate::us_metar_components::*;
     //paused due to upcoming refactor
-    #[test]
+   /* #[test]
     fn check_when() {
         let w = When::new(String::from("291314Z"));
         assert_eq!(w.day_of_month, 29);
@@ -346,5 +318,5 @@ mod tests {
         assert_eq!(c.rwy, String::from("31"));
         assert_eq!(t_v(c.vis), String::from("-1400"));
         assert_eq!(t_v(c.upper_bound.unwrap()), String::from("+1600"));
-    }
+    } */
 }

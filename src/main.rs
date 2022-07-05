@@ -6,6 +6,7 @@ use crate::us_metar_components::*;
 //THINK ABOUT OWNERSHIP
 //doesnt deal w any weather yet
 fn parse(metar: String)  {
+    /*
     let mut s = metar.split_whitespace();
     let mut a: Vec<String> = Vec::new();
     for s1 in s {
@@ -33,6 +34,7 @@ fn parse(metar: String)  {
     }
     println!("{}", t.name_needed());
     println!("{}", alt.name_needed());
+    */
 }
 fn main() {
     let mettt = String::from("KDFW 201253Z 13008KT 10SM BKN073 OVC090 FEW250 26/19 A3008");

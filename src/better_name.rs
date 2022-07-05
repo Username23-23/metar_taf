@@ -2,13 +2,6 @@ use crate::us_metar_components::*;
 pub trait Name {
     fn name_needed(&self) -> String;
 }
-impl Name for When {
-    fn name_needed(&self) -> String {
-        let hour = (self.get_time() / 100);
-        let minute = self.get_time() - (hour * 100);
-        format!("Taken on the {}th day of the current month at {}:{} UTC\n", self.get_day(), hour, minute)
-    }
-} 
 impl Name for Wind {
     fn name_needed(&self) -> String {
         let translate_dir = |a: &Range<u32>| -> String {
@@ -40,28 +33,6 @@ impl Name for Visibility {
             _ => String::new(),
         }
     }
-}
-impl Name for Cloud_layer {
-    fn name_needed(&self) -> String {
-        match self {
-            Cloud_layer::Few(a) => format!("Few clouds at {} feet AGL\n", a),
-            Cloud_layer::Sct(b) => format!("Scattered clouds at {} feet AGL\n", b),
-            Cloud_layer::Bkn(c) => format!("Broken clouds at {} feet AGL\n", c),
-            Cloud_layer::Ovc(d) => format!("Overcast clouds at {} feet AGL\n", d),
-            Cloud_layer::ClrSkc(_) => format!("Clear skies"),
-            _ => String::new(),
-        }
-    }    
-}
-impl Name for Alt {
-    fn name_needed(&self) -> String {
-        format!("Altimiter: {} inHg\n", self.get_alt_inhg())
-    }    
-}
-impl Name for Temps {
-    fn name_needed(&self) -> String {
-        format!("Temperature: {} Celsius\nDewpoint: {} Celsius\n", self.get_temp(), self.get_dewpoint())
-    }    
 }
 impl Name for Weather {
     fn name_needed(&self) -> String {
