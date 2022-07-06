@@ -1,4 +1,4 @@
-//TODO: cleanup- reduce repetitive calls, better on borrowing/refs, better error handling
+//TODO: cleanup- reduce repetitive calls, better on borrowing/refs, better error handling, format string slices
 pub use std::ops::Range;
 pub trait Parser {
     fn parse(info: String) -> String;
@@ -8,44 +8,36 @@ impl Parser for When {
     fn parse(info: String) -> String {
         let day = info[..2].parse::<u32>().expect("Error parsing day METAR was observed");
         let time = info[2..6].parse::<u32>().expect("Error parsing time METAR was observed");
-        format!("Taken on the {}th day of the current month at {}:{} UTC\n", day, time / 100, self.get_time() - (hour * 100))
+        let hour = time / 100;
+        format!("Taken on the {}th day of the current month at {}:{} UTC\n", day, hour, time - (hour * 100))
     }
 }
-pub struct Wind {
-    pub spd: Range<u32>,
-    pub dir: Range<u32>,
-}
-impl Wind {
-    pub fn new(info: String) -> Self {
-        let parsed = String::new();
-        let d = info[..3].parse::<u32>(); // err here means dir was "VRB"
+pub struct Wind;
+impl Parser for Wind {
+    fn parse(info: String) -> String {
+        let mut parsed = String::new();
+        let d = info[..=2].parse::<u32>(); // err here means dir was "VRB"
         let sp = info.find(" "); // some here means variable dir was included
-        let g = info.find("G"); // some here means there is gust
-        let dir1: Range<u32>;
-        let spd1: Range<u32>;
+        let g = info.find("G"); // some here means there is gust\
+        let k = info.find("K").expect("Couldn't find wind speed");
         if let Ok(direction) = d {
             if let Some(i_s) = sp {
-                dir1 = (info[i_s + 1..info.find("V").unwrap()].parse::<u32>().expect("one")..info[info.find("V").unwrap() + 1..].parse::<u32>().expect("two"));
+                parsed += format!("Dominant wind direction: {} degrees (varying between {} and {} degrees)\n", direction, info[i_s + 1..info.find("V").unwrap()].parse::<u32>().expect("Couldn't parse varying wind direction"), info[info.find("V").unwrap() + 1..].parse::<u32>().expect("Couldn't parse varying wind direction")).as_str();
             } else {
-                dir1 = (info[0..3].parse::<u32>().unwrap()..info[0..3].parse::<u32>().unwrap());
+                parsed += format!("Wind direction: {} degrees\n", direction).as_str();
             }
         } else {
-            dir1 = (999..999);
+            parsed.push_str("Wind direction: variable\n");
         }
         if let Some(gust) = g {
-            spd1 = (info[3..gust].parse::<u32>().expect("1")..info[gust + 1..info.find("K").unwrap()].parse::<u32>().expect("2"));
+            parsed += format!("Wind speed: {} knots, with gusts of {} knots", info[3..gust].parse::<u32>().expect("Couldn't parse wind speed"), info[gust + 1..k].parse::<u32>().expect("Couldn't parse wind gust speed")).as_str();
         } else {
-            spd1 = (info[3..info.find("K").unwrap()].parse::<u32>().unwrap()..info[3..info.find("K").unwrap()].parse::<u32>().unwrap());
+            parsed += format!("Wind speed: {} knots", info[3..k].parse::<u32>().expect("Couldn't parse wind speed")).as_str();
         }
-        Self {
-            spd: spd1,
-            dir: dir1,
-        }
+        parsed
     }
 }
-impl Parser
-//TODO: fractions
-#[derive(Debug)]
+//TODO: fractions for visibility
 pub enum Visibility {
     Plus(i32),
     Exact(i32), 
@@ -69,17 +61,33 @@ impl Visibility {
         }
     }
 }
+impl Parser for Visibility {
+    fn parse(info: String) -> String {
+        let mut parsed = String::new();
+        let sm = info.find("S").expect("Couldn't parse visibility");
+        let p = info.find("P");
+        let m = info.find("M");
+        if let Some(i_p) = p {
+            parsed += format!("Visibiliy: more than {} statute miles", info[i_p + 1..sm].parse::<u32>().expect("Couldn't parse visibility")).as_str();
+        } else if let Some(i_m) = m {
+            parsed += format!("Visibiliy: less than {} statute miles", info[i_m + 1..sm].parse::<u32>().expect("Couldn't parse visibility")).as_str();
+        } else {
+            parsed += format!("Visibiliy: {} statute miles", info[..sm].parse::<u32>().expect("Couldn't parse visibility")).as_str();
+        }
+        parsed
+    }
+}
 //TODO: vertical visib, clr/skc
 pub struct CloudLayer;
 impl Parser for CloudLayer {
     fn parse(info: String) -> String {
-        let parsed = String::new();
+        let mut parsed = String::new();
         let height: u32 = info[3..6].parse::<u32>().expect("Couldn't parse cloud layer height") * 100; //what happens here if clr/skc (index out of bounds)
         match &info[0..=2] {
-            "OVC" => parsed += format!("Overcast clouds at {} ft", height),
-            "BKN" => parsed += format!("Broken clouds at {} ft", height),
-            "SCT" => parsed += format!("Scattered clouds at {} ft", height),
-            "FEW" => parsed += format!("Few clouds at {} ft", height),
+            "OVC" => parsed += format!("Overcast clouds at {} ft", height).as_str(),
+            "BKN" => parsed += format!("Broken clouds at {} ft", height).as_str(),
+            "SCT" => parsed += format!("Scattered clouds at {} ft", height).as_str(),
+            "FEW" => parsed += format!("Few clouds at {} ft", height).as_str(),
             _ => parsed.push_str("Clear skies"),
         }
         parsed
@@ -88,7 +96,7 @@ impl Parser for CloudLayer {
 pub struct Alt;
 impl Parser for Alt {
     fn parse(info: String) -> String {
-        let alt =  (info[1..].parse::<f64>().expect("Couldn't parse altimeter setting")) / 100.0
+        let alt = (info[1..].parse::<f64>().expect("Couldn't parse altimeter setting")) / 100.0;
         format!("Altimiter: {} inHg\n", alt)
     }
 }
@@ -115,115 +123,93 @@ impl Parser for Temps {
         format!("Temperature: {} Celsius\nDewpoint: {} Celsius\n", temp_celsius, dewpoint_celsius)
     }
 }
-//TODO: use range for rvr
-pub struct Rvr {
-    rwy: String,
-    vis: Visibility,
-    upper_bound: Option<Visibility>,
-}
-impl Rvr {
-    pub fn new(info: String) -> Self {
+pub struct Rvr;
+impl Parser for Rvr {
+    fn parse(info: String) -> String {
+        let mut parsed = String::new();
         let slash = info.find("/").expect("Couldn't parse rvr measurement: \"/\" not found where expected");
         let f = info.find("F").expect("Couldn't parse rvr measurement: \"FT\" not found where expected");
         let v = info.find("V");
+        let p = info.find("P");
+        let m = info.find("M");
+        parsed += format!("RVR for Runway {}: ", &info[1..slash]).as_str();
         if let Some(i_v) = v {
-            Self {
-                rwy: String::from(&info[1..slash]),
-                vis: Visibility::visibility_for_rvr(String::from(&info[slash + 1..i_v])),
-                upper_bound: Some(Visibility::visibility_for_rvr(String::from(&info[i_v + 1..f]))), 
+            if let Some(i_m) = m {
+                parsed += format!("Between less than {} ft", info[i_m + 1..i_v].parse::<u32>().expect("Unable to parse rvr 1")).as_str();
+            } else {
+                parsed += format!("Less than {} ft", info[slash + 1..i_v].parse::<u32>().expect("Unable to parse rvr 2")).as_str();
+            }
+            if let Some(i_p) = p {
+                parsed += format!("and more than {} ft", info[i_p + 1..f].parse::<u32>().expect("Unable to parse rvr 3")).as_str();
+            } else {
+                parsed += format!("and {} ft", info[i_v + 1..f].parse::<u32>().expect("Unable to parse rvr 4")).as_str();
             }
         } else {
-            Self {
-                rwy: String::from(&info[1..slash]),
-                vis: Visibility::visibility_for_rvr(String::from(&info[slash + 1..f])),
-                upper_bound: None,
+            if let Some(i_m) = m {
+                parsed += format!("Less than {} ft", info[i_m + 1..f].parse::<u32>().expect("Unable to parse rvr 5")).as_str();
+            } else if let Some(i_p) = p {
+                parsed += format!("More than {} ft", info[i_p + 1..f].parse::<u32>().expect("Unable to parse rvr 6")).as_str()
+            } else {
+                parsed += format!("{} ft", info[slash + 1..f].parse::<u32>().expect("Unable to parse rvr 7")).as_str();
             }
         }
-    }
-    pub fn get_rwy(&self) -> &String {
-        &self.rwy
-    }
-    pub fn get_vis(&self) -> &Visibility {
-        &self.vis
-    }
-    pub fn get_upper_bound(&self) -> &Option<Visibility> {
-        &self.upper_bound
+        parsed
     }
 }
-pub struct Weather {
-    intensity: u8,
-    proximity: u8,
-    desc: u8,
-    precip: u8,
-    obscuration: u8,
-    misc: u8,
-}
-impl Weather {
-    pub fn new(info: String) -> Self {
-        let mut i: u8 = 0;
-        let mut po: u8 = 0;
-        let mut d: u8 = 0;
-        let mut pr: u8 = 0;
-        let mut ob: u8 = 0;
-        let mut m: u8 = 0;
+pub struct Weather;
+impl Parser for Weather {
+    fn parse(info: String) -> String {
+        let mut parsed = String::new();
         let mut current_index = 0;
         match &info[0..1] {
             "+" => {
-                i = 3;
+                parsed.push_str("Heavy");
                 current_index = 1;
             },
             "-" => {
-                i = 1;
+                parsed.push_str("Light");
                 current_index = 1;
             },
-            _ => i = 2,
+            _ => (),
         }
-        //TODO: make match more efficient
         while current_index < info.len() {
             match &info[current_index..=current_index + 1] {
-                "VC" => po = 1,
-                "MI" => d = 1,
-                "PR" => d = 2,
-                "BC" => d = 3,
-                "DR" => d = 4,
-                "BL" => d = 5,
-                "SH" => d = 6,
-                "TS" => d = 7, 
-                "FZ" => d = 8,
-                "DZ" => pr = 1,
-                "RA" => pr = 2,
-                "SN" => pr = 3,
-                "SG" => pr = 4,
-                "IC" => pr = 5,
-                "PL" => pr = 6,
-                "GR" => pr = 7,
-                "GS" => pr = 8,
-                "UP" => pr = 9,
-                "BR" => ob = 1,
-                "FG" => ob = 2,
-                "FU" => ob = 3,
-                "VA" => ob = 4,
-                "DU" => ob = 5, 
-                "SA" => ob = 6,
-                "HZ" => ob = 7,
-                "PY" => ob = 8,
-                "PO" => misc = 1,
-                "SQ" => misc = 2,
-                "FC" => misc = 3,
-                "SS" => misc = 4,
-                "DS" => misc = 5, 
+                "VC" => parsed.push_str("In the vicinity"),
+                "MI" => parsed.push_str("Shallow"),
+                "PR" => parsed.push_str("Partial"),
+                "BC" => parsed.push_str("Patches"),
+                "DR" => parsed.push_str("Low Drifting"),
+                "BL" => parsed.push_str("Blowing"),
+                "SH" => parsed.push_str("Showers of"),
+                "TS" => parsed.push_str("Thunderstorm"), 
+                "FZ" => parsed.push_str("Freezing"),
+                "DZ" => parsed.push_str("Drizzle"),
+                "RA" => parsed.push_str("Rain"),
+                "SN" => parsed.push_str("Snow"),
+                "SG" => parsed.push_str("Snow Grains"),
+                "IC" => parsed.push_str("Ice Crystals"),
+                "PL" => parsed.push_str("Ice Pellets"),
+                "GR" => parsed.push_str("Hail"),
+                "GS" => parsed.push_str("Snow Pellets"),
+                "UP" => parsed.push_str("Unknown Precipitation"),
+                "BR" => parsed.push_str("Mist"),
+                "FG" => parsed.push_str("Fog"),
+                "FU" => parsed.push_str("Smoke"),
+                "VA" => parsed.push_str("Volcanic ash"),
+                "DU" => parsed.push_str("Widespread dust"), 
+                "SA" => parsed.push_str("Sand"),
+                "HZ" => parsed.push_str("Haze"),
+                "PY" => parsed.push_str("Spray"),
+                "PO" => parsed.push_str("Sand Whirls"),
+                "SQ" => parsed.push_str("Squalls"),
+                "FC" => parsed.push_str("Tornado"),
+                "SS" => parsed.push_str("Sandstorm"),
+                "DS" => parsed.push_str("Duststorm"), 
                 _ => (),
             }
             current_index += 2;
         }
-        Self {
-            intensity: i,
-            proximity: po,
-            desc: d,
-            precip: pr,
-            obscuration: ob,
-            misc: m,
-        }
+        parsed
     }
 }
 mod tests {
