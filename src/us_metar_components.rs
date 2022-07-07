@@ -8,7 +8,7 @@ impl Parser for When {
         let day = info[..2].parse::<u32>().expect("Error parsing day METAR was observed");
         let time = info[2..6].parse::<u32>().expect("Error parsing time METAR was observed");
         let hour = time / 100;
-        format!("Taken on the {}th day of the current month at {}:{} UTC\n", day, hour, time - (hour * 100))
+        format!("Taken on the {}th day of the current month at {}:{} UTC", day, hour, time - (hour * 100))
     }
 }
 pub struct Wind;
@@ -64,16 +64,20 @@ impl Parser for Visibility {
 pub struct CloudLayer;
 impl Parser for CloudLayer {
     fn parse(info: String) -> String {
-        let mut parsed = String::new();
-        let height: u32 = info[3..6].parse::<u32>().expect("Couldn't parse cloud layer height") * 100; //what happens here if clr/skc (index out of bounds)
-        match &info[0..=2] {
-            "OVC" => parsed += format!("Overcast clouds at {} ft AGL", height).as_str(),
-            "BKN" => parsed += format!("Broken clouds at {} ft AGL", height).as_str(),
-            "SCT" => parsed += format!("Scattered clouds at {} ft AGL", height).as_str(),
-            "FEW" => parsed += format!("Few clouds at {} ft AGL", height).as_str(),
-            _ => parsed.push_str("No cloud layers observed"),
-        }
-        parsed
+        if(&info[..] == "CLR" || &info[..] == "SKC") {
+            String::from("No cloud layers observed")
+        } else {
+            let mut parsed = String::new();
+            let height: u32 = info[3..6].parse::<u32>().expect("Couldn't parse cloud layer height") * 100; //what happens here if clr/skc (index out of bounds)
+            match &info[0..=2] {
+                "OVC" => parsed += format!("Overcast clouds at {} ft AGL", height).as_str(),
+                "BKN" => parsed += format!("Broken clouds at {} ft AGL", height).as_str(),
+                "SCT" => parsed += format!("Scattered clouds at {} ft AGL", height).as_str(),
+                "FEW" => parsed += format!("Few clouds at {} ft AGL", height).as_str(),
+                _ => parsed.push_str("No cloud layers observed"),
+            }
+            parsed
+        }   
     }
 } 
 pub struct Alt;
@@ -103,7 +107,7 @@ impl Parser for Temps {
             },
             _ => panic!("Unexpected length for temperature/dewpoint measurement")
         }
-        format!("Temperature: {} Celsius\nDewpoint: {} Celsius\n", temp_celsius, dewpoint_celsius)
+        format!("Temperature: {} Celsius\nDewpoint: {} Celsius", temp_celsius, dewpoint_celsius)
     }
 }
 pub struct Rvr;
@@ -200,7 +204,7 @@ mod tests {
     #[test]
     fn when() {
         let w = When::parse(String::from("291314Z"));
-        let s = String::from("Taken on the 29th day of the current month at 13:14 UTC\n");
+        let s = String::from("Taken on the 29th day of the current month at 13:14 UTC");
         assert_eq!(w, s);
     }
     #[test]
@@ -257,13 +261,13 @@ mod tests {
     #[test]
     fn temps() {
         let a = Temps::parse(String::from("17/14"));
-        let s1 = String::from("Temperature: 17 Celsius\nDewpoint: 14 Celsius\n");
+        let s1 = String::from("Temperature: 17 Celsius\nDewpoint: 14 Celsius");
         assert_eq!(a, s1);
         let b = Temps::parse(String::from("07/M03"));
-        let s2 = String::from("Temperature: 7 Celsius\nDewpoint: -3 Celsius\n");
+        let s2 = String::from("Temperature: 7 Celsius\nDewpoint: -3 Celsius");
         assert_eq!(b, s2);
         let c = Temps::parse(String::from("M09/M10"));
-        let s3 = String::from("Temperature: -9 Celsius\nDewpoint: -10 Celsius\n");
+        let s3 = String::from("Temperature: -9 Celsius\nDewpoint: -10 Celsius");
         assert_eq!(c, s3);
     }
     #[test] 
