@@ -26,14 +26,14 @@ fn parse(metar: String)  {
     let t = Temps::new(a.get(i).unwrap().clone());
     i += 1;
     let alt = Alt::new(a.get(i).unwrap().clone());
-    println!("{}", time.name_needed());
-    println!("{}", wind.name_needed());
-    println!("{}", vis.name_needed());
+    println!("{}", time);
+    println!("{}", wind);
+    println!("{}", vis);
     for qw in &cl {
-        println!("{}", qw.name_needed());
+        println!("{}", qw);
     }
-    println!("{}", t.name_needed());
-    println!("{}", alt.name_needed());
+    println!("{}", t);
+    println!("{}", alt);
     */
 }
 fn main() {

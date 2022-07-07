@@ -1,5 +1,4 @@
 //TODO: cleanup- reduce repetitive calls, better on borrowing/refs, better error handling, format string slices
-pub use std::ops::Range;
 pub trait Parser {
     fn parse(info: String) -> String;
 }
@@ -38,41 +37,25 @@ impl Parser for Wind {
     }
 }
 //TODO: fractions for visibility
-pub enum Visibility {
-    Plus(i32),
-    Exact(i32), 
-    Less(i32), 
-}
-impl Visibility {
-    pub fn new(info: String) -> Self {
-        if(&info[0..1] == "P") {
-            Visibility::Plus(info[1..info.find("S").unwrap()].parse::<i32>().unwrap())
-        } else if(&info[0..1] == "M") {
-            Visibility::Less(info[1..info.find("S").unwrap()].parse::<i32>().unwrap())
-        } else {
-            Visibility::Exact(info[0..info.find("S").unwrap()].parse::<i32>().unwrap())
-        }
-    }
-    pub fn visibility_for_rvr(info: String) -> Self {
-        match &info[0..1] {
-            "M" => Visibility::Less(info[info.find("M").unwrap() + 1..].parse::<i32>().unwrap()),
-            "P" => Visibility::Plus(info[info.find("P").unwrap() + 1..].parse::<i32>().unwrap()),
-            _ => Visibility::Exact(info[0..].parse::<i32>().unwrap()),
-        }
-    }
-}
+pub struct Visibility;
 impl Parser for Visibility {
     fn parse(info: String) -> String {
         let mut parsed = String::new();
         let sm = info.find("S").expect("Couldn't parse visibility");
         let p = info.find("P");
-        let m = info.find("M");
+        let m = {
+            if(&info[0..1] == "M") {
+                Some(0)
+            } else {
+                None
+            }
+        };
         if let Some(i_p) = p {
-            parsed += format!("Visibiliy: more than {} statute miles", info[i_p + 1..sm].parse::<u32>().expect("Couldn't parse visibility")).as_str();
+            parsed += format!("Visibility: more than {} statute miles", info[i_p + 1..sm].parse::<u32>().expect("Couldn't parse visibility")).as_str();
         } else if let Some(i_m) = m {
-            parsed += format!("Visibiliy: less than {} statute miles", info[i_m + 1..sm].parse::<u32>().expect("Couldn't parse visibility")).as_str();
+            parsed += format!("Visibility: less than {} statute miles", info[i_m + 1..sm].parse::<u32>().expect("Couldn't parse visibility")).as_str();
         } else {
-            parsed += format!("Visibiliy: {} statute miles", info[..sm].parse::<u32>().expect("Couldn't parse visibility")).as_str();
+            parsed += format!("Visibility: {} statute miles", info[..sm].parse::<u32>().expect("Couldn't parse visibility")).as_str();
         }
         parsed
     }
@@ -84,11 +67,11 @@ impl Parser for CloudLayer {
         let mut parsed = String::new();
         let height: u32 = info[3..6].parse::<u32>().expect("Couldn't parse cloud layer height") * 100; //what happens here if clr/skc (index out of bounds)
         match &info[0..=2] {
-            "OVC" => parsed += format!("Overcast clouds at {} ft", height).as_str(),
-            "BKN" => parsed += format!("Broken clouds at {} ft", height).as_str(),
-            "SCT" => parsed += format!("Scattered clouds at {} ft", height).as_str(),
-            "FEW" => parsed += format!("Few clouds at {} ft", height).as_str(),
-            _ => parsed.push_str("Clear skies"),
+            "OVC" => parsed += format!("Overcast clouds at {} ft AGL", height).as_str(),
+            "BKN" => parsed += format!("Broken clouds at {} ft AGL", height).as_str(),
+            "SCT" => parsed += format!("Scattered clouds at {} ft AGL", height).as_str(),
+            "FEW" => parsed += format!("Few clouds at {} ft AGL", height).as_str(),
+            _ => parsed.push_str("No cloud layers observed"),
         }
         parsed
     }
@@ -135,9 +118,9 @@ impl Parser for Rvr {
         parsed += format!("RVR for Runway {}: ", &info[1..slash]).as_str();
         if let Some(i_v) = v {
             if let Some(i_m) = m {
-                parsed += format!("Between less than {} ft", info[i_m + 1..i_v].parse::<u32>().expect("Unable to parse rvr 1")).as_str();
+                parsed += format!("Between less than {} ft ", info[i_m + 1..i_v].parse::<u32>().expect("Unable to parse rvr 1")).as_str();
             } else {
-                parsed += format!("Less than {} ft", info[slash + 1..i_v].parse::<u32>().expect("Unable to parse rvr 2")).as_str();
+                parsed += format!("Between {} ft ", info[slash + 1..i_v].parse::<u32>().expect("Unable to parse rvr 2")).as_str();
             }
             if let Some(i_p) = p {
                 parsed += format!("and more than {} ft", info[i_p + 1..f].parse::<u32>().expect("Unable to parse rvr 3")).as_str();
@@ -163,48 +146,48 @@ impl Parser for Weather {
         let mut current_index = 0;
         match &info[0..1] {
             "+" => {
-                parsed.push_str("Heavy");
+                parsed.push_str("Heavy ");
                 current_index = 1;
             },
             "-" => {
-                parsed.push_str("Light");
+                parsed.push_str("Light ");
                 current_index = 1;
             },
             _ => (),
         }
         while current_index < info.len() {
             match &info[current_index..=current_index + 1] {
-                "VC" => parsed.push_str("In the vicinity"),
-                "MI" => parsed.push_str("Shallow"),
-                "PR" => parsed.push_str("Partial"),
-                "BC" => parsed.push_str("Patches"),
-                "DR" => parsed.push_str("Low Drifting"),
-                "BL" => parsed.push_str("Blowing"),
-                "SH" => parsed.push_str("Showers of"),
-                "TS" => parsed.push_str("Thunderstorm"), 
-                "FZ" => parsed.push_str("Freezing"),
-                "DZ" => parsed.push_str("Drizzle"),
-                "RA" => parsed.push_str("Rain"),
-                "SN" => parsed.push_str("Snow"),
-                "SG" => parsed.push_str("Snow Grains"),
-                "IC" => parsed.push_str("Ice Crystals"),
-                "PL" => parsed.push_str("Ice Pellets"),
-                "GR" => parsed.push_str("Hail"),
-                "GS" => parsed.push_str("Snow Pellets"),
-                "UP" => parsed.push_str("Unknown Precipitation"),
-                "BR" => parsed.push_str("Mist"),
-                "FG" => parsed.push_str("Fog"),
-                "FU" => parsed.push_str("Smoke"),
-                "VA" => parsed.push_str("Volcanic ash"),
-                "DU" => parsed.push_str("Widespread dust"), 
-                "SA" => parsed.push_str("Sand"),
-                "HZ" => parsed.push_str("Haze"),
-                "PY" => parsed.push_str("Spray"),
-                "PO" => parsed.push_str("Sand Whirls"),
-                "SQ" => parsed.push_str("Squalls"),
-                "FC" => parsed.push_str("Tornado"),
-                "SS" => parsed.push_str("Sandstorm"),
-                "DS" => parsed.push_str("Duststorm"), 
+                "VC" => parsed.push_str("In the vicinity, "),
+                "MI" => parsed.push_str("Shallow "),
+                "PR" => parsed.push_str("Partial "),
+                "BC" => parsed.push_str("Patches "),
+                "DR" => parsed.push_str("Low Drifting "),
+                "BL" => parsed.push_str("Blowing "),
+                "SH" => parsed.push_str("Showers of "),
+                "TS" => parsed.push_str("Thunderstorm(s) "), 
+                "FZ" => parsed.push_str("Freezing "),
+                "DZ" => parsed.push_str("Drizzle "),
+                "RA" => parsed.push_str("Rain "),
+                "SN" => parsed.push_str("Snow "),
+                "SG" => parsed.push_str("Snow Grains "),
+                "IC" => parsed.push_str("Ice Crystals "),
+                "PL" => parsed.push_str("Ice Pellets "),
+                "GR" => parsed.push_str("Hail "),
+                "GS" => parsed.push_str("Snow Pellets "),
+                "UP" => parsed.push_str("Unknown Precipitation "),
+                "BR" => parsed.push_str("Mist "),
+                "FG" => parsed.push_str("Fog "),
+                "FU" => parsed.push_str("Smoke "),
+                "VA" => parsed.push_str("Volcanic ash "),
+                "DU" => parsed.push_str("Widespread dust "), 
+                "SA" => parsed.push_str("Sand "),
+                "HZ" => parsed.push_str("Haze "),
+                "PY" => parsed.push_str("Spray "),
+                "PO" => parsed.push_str("Sand Whirls "),
+                "SQ" => parsed.push_str("Squalls "),
+                "FC" => parsed.push_str("Tornado "),
+                "SS" => parsed.push_str("Sandstorm "),
+                "DS" => parsed.push_str("Duststorm "), 
                 _ => (),
             }
             current_index += 2;
@@ -214,95 +197,85 @@ impl Parser for Weather {
 }
 mod tests {
     use crate::us_metar_components::*;
-    //paused due to upcoming refactor
-   /* #[test]
-    fn check_when() {
-        let w = When::new(String::from("291314Z"));
-        assert_eq!(w.day_of_month, 29);
-        assert_eq!(w.zulu_time, 1314);
+    #[test]
+    fn when() {
+        let w = When::parse(String::from("291314Z"));
+        let s = String::from("Taken on the 29th day of the current month at 13:14 UTC\n");
+        assert_eq!(w, s);
     }
     #[test]
-    fn check_wind() {
-        let a = Wind::new(String::from("08717G24KT"));
-        assert_eq!(a.spd, (17..24));
-        assert_eq!(a.dir, (087..087));
-        let b = Wind::new(String::from("08717KT"));
-        assert_eq!(b.spd, (17..17));
-        assert_eq!(b.dir, (087..087));
-        let c = Wind::new(String::from("08717G24KT 086V088"));
-        assert_eq!(c.spd, (17..24));
-        assert_eq!(c.dir, (086..088));
-        let d = Wind::new(String::from("VRB03G05KT"));
-        assert_eq!(d.spd, (3..5));
-        assert_eq!(d.dir, (999..999));
+    fn wind() {
+        let a = Wind::parse(String::from("08717G24KT"));
+        let s1 = String::from("Wind direction: 87 degrees\nWind speed: 17 knots, with gusts of 24 knots");
+        assert_eq!(a, s1);
+        let b = Wind::parse(String::from("08717KT"));
+        let s2 = String::from("Wind direction: 87 degrees\nWind speed: 17 knots");
+        assert_eq!(b, s2);
+        let c = Wind::parse(String::from("08717G24KT 086V088"));
+        let s3 = String::from("Dominant wind direction: 87 degrees (varying between 86 and 88 degrees)\nWind speed: 17 knots, with gusts of 24 knots");
+        assert_eq!(c, s3);
+        let d = Wind::parse(String::from("VRB03G05KT"));
+        let s4 = String::from("Wind direction: variable\nWind speed: 3 knots, with gusts of 5 knots");
+        assert_eq!(d, s4);
     }
     #[test]
-    fn check_alt() {
-        let a = Alt::new(String::from("A2973"));
-        assert_eq!(a.alt_inhg, 29.73);
+    fn visibility() {
+        let a = Visibility::parse(String::from("9SM"));
+        let s1 = String::from("Visibility: 9 statute miles");
+        assert_eq!(a, s1);
+        let b = Visibility::parse(String::from("M6SM"));
+        let s2 = String::from("Visibility: less than 6 statute miles");
+        assert_eq!(b, s2);
+        let c = Visibility::parse(String::from("P4SM"));
+        let s3 = String::from("Visibility: more than 4 statute miles");
+        assert_eq!(c, s3);
+    }
+    #[test]
+    fn cloud_layer() {
+        let a = CloudLayer::parse(String::from("SCT036"));
+        let s = String::from("Scattered clouds at 3600 ft AGL");
+        assert_eq!(a, s);
+    }
+    #[test]
+    fn altimeter() {
+        let a = Alt::parse(String::from("A2973"));
+        let s = String::from("Altimiter: 29.73 inHg\n");
+        assert_eq!(a, s);
+    }
+    #[test]
+    fn rvr() {
+        let a = Rvr::parse(String::from("R05L/1600FT"));
+        let s1 = String::from("RVR for Runway 05L: 1600 ft");
+        assert_eq!(a, s1);
+        let b = Rvr::parse(String::from("R27/1500V1700FT"));
+        let s2 = String::from("RVR for Runway 27: Between 1500 ft and 1700 ft");
+        assert_eq!(b, s2);
+        let c = Rvr::parse(String::from("R31/M1400VP1600FT"));
+        let s3 = String::from("RVR for Runway 31: Between less than 1400 ft and more than 1600 ft");
+        assert_eq!(c, s3);
+    }
+    #[test]
+    fn temps() {
+        let a = Temps::parse(String::from("17/14"));
+        let s1 = String::from("Temperature: 17 Celsius\nDewpoint: 14 Celsius\n");
+        assert_eq!(a, s1);
+        let b = Temps::parse(String::from("07/M03"));
+        let s2 = String::from("Temperature: 7 Celsius\nDewpoint: -3 Celsius\n");
+        assert_eq!(b, s2);
+        let c = Temps::parse(String::from("M09/M10"));
+        let s3 = String::from("Temperature: -9 Celsius\nDewpoint: -10 Celsius\n");
+        assert_eq!(c, s3);
     }
     #[test] 
-    fn check_temps() {
-        let a = Temps::new(String::from("17/14"));
-        let b = Temps::new(String::from("07/M03"));
-        let c = Temps::new(String::from("M09/M10"));
-        assert_eq!(a.temp_celsius, 17);
-        assert_eq!(a.dewpoint_celsius, 14);
-        assert_eq!(b.temp_celsius, 7);
-        assert_eq!(b.dewpoint_celsius, -3);
-        assert_eq!(c.temp_celsius, -9);
-        assert_eq!(c.dewpoint_celsius, -10);
+    fn weather() {
+        let a = Weather::parse(String::from("+FZRA"));
+        let s1 = String::from("Heavy Freezing Rain ");
+        assert_eq!(a, s1);
+        let b = Weather::parse(String::from("SN"));
+        let s2 = String::from("Snow ");
+        assert_eq!(b, s2);
+        let c = Weather::parse(String::from("VCTS"));
+        let s3 = String::from("In the vicinity, Thunderstorm(s) ");
+        assert_eq!(c, s3);
     }
-    #[test]
-    fn check_weather() {
-
-    }
-    #[test]
-    fn check_visibility() {
-        let a = Visibility::new(String::from("9SM"));
-        let b = Visibility::new(String::from("M6SM"));
-        let c = Visibility::new(String::from("P4SM"));
-        let get_range = |p: Visibility| -> i32 {
-            match p {
-                Visibility::Plus(a) => a + 1,
-                Visibility::Exact(b) => b,
-                Visibility::Less(c) => c - 1,
-            }
-        };
-        assert_eq!(9, get_range(a));
-        assert_eq!(5, get_range(b));
-        assert_eq!(5, get_range(c));
-    }
-    #[test]
-    //needs rewrite
-    fn check_clouds() {
-        let a = Cloud_layer::new(String::from("SCT036"));
-        assert_eq!({
-            match a {
-                Cloud_layer::Sct(b) => b,
-                _ => 0
-            }
-        }, 3600);
-    }
-    #[test]
-    fn check_rvr() {
-        let t_v = |a: Visibility| -> String {
-            match a {
-                Visibility::Plus(e) => format!("+{}", e),
-                Visibility::Exact(f) => format!("{}", f),
-                Visibility::Less(g) => format!("-{}", g),
-            }
-        };
-        let a = Rvr::new(String::from("R05L/1600FT"));
-        assert_eq!(a.rwy, String::from("05L"));
-        assert_eq!(t_v(a.vis), String::from("1600"));
-        let b = Rvr::new(String::from("R27/1500V1700FT"));
-        assert_eq!(b.rwy, String::from("27"));
-        assert_eq!(t_v(b.vis), String::from("1500"));
-        assert_eq!(t_v(b.upper_bound.unwrap()), String::from("1700"));
-        let c = Rvr::new(String::from("R31/M1400VP1600FT"));
-        assert_eq!(c.rwy, String::from("31"));
-        assert_eq!(t_v(c.vis), String::from("-1400"));
-        assert_eq!(t_v(c.upper_bound.unwrap()), String::from("+1600"));
-    } */
 }
