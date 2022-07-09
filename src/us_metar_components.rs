@@ -1,10 +1,10 @@
 //TODO: cleanup- reduce repetitive calls, better on borrowing/refs, better error handling, format string slices
 pub trait Parser {
-    fn parse(info: String) -> String;
+    fn parse(info: &String) -> String;
 }
 pub struct When;
 impl Parser for When {
-    fn parse(info: String) -> String {
+    fn parse(info: &String) -> String {
         let day = info[..2].parse::<u32>().expect("Error parsing day METAR was observed");
         let time = info[2..6].parse::<u32>().expect("Error parsing time METAR was observed");
         let hour = time / 100;
@@ -13,18 +13,13 @@ impl Parser for When {
 }
 pub struct Wind;
 impl Parser for Wind {
-    fn parse(info: String) -> String {
+    fn parse(info: &String) -> String {
         let mut parsed = String::new();
         let d = info[..=2].parse::<u32>(); // err here means dir was "VRB"
-        let sp = info.find(" "); // some here means variable dir was included
         let g = info.find("G"); // some here means there is gust\
         let k = info.find("K").expect("Couldn't find wind speed");
         if let Ok(direction) = d {
-            if let Some(i_s) = sp {
-                parsed += format!("Dominant wind direction: {} degrees (varying between {} and {} degrees)\n", direction, info[i_s + 1..info.find("V").unwrap()].parse::<u32>().expect("Couldn't parse varying wind direction"), info[info.find("V").unwrap() + 1..].parse::<u32>().expect("Couldn't parse varying wind direction")).as_str();
-            } else {
-                parsed += format!("Wind direction: {} degrees\n", direction).as_str();
-            }
+            parsed += format!("Wind direction: {} degrees\n", direction).as_str();
         } else {
             parsed.push_str("Wind direction: variable\n");
         }
@@ -36,13 +31,21 @@ impl Parser for Wind {
         parsed
     }
 }
-//TODO: fractions for visibility
+pub struct VariableWindDirection;
+impl Parser for VariableWindDirection {
+    fn parse(info: &String) -> String {
+        let v = info.find("V").expect("Couldn't parse varying wind direction");
+        format!("Wind direction varying between {} and {} degrees", info[..v].parse::<u32>().expect("Couldn't parse varying wind direction"), info[v + 1..].parse::<u32>().expect("Couldn't parse varying wind direction"))
+    }
+}
 pub struct Visibility;
 impl Parser for Visibility {
-    fn parse(info: String) -> String {
+    fn parse(info: &String) -> String {
         let mut parsed = String::new();
         let sm = info.find("S").expect("Couldn't parse visibility");
         let p = info.find("P");
+        let slash = info.find("/");
+        let sp = info.find(" ");
         let m = {
             if(&info[0..1] == "M") {
                 Some(0)
@@ -50,25 +53,55 @@ impl Parser for Visibility {
                 None
             }
         };
-        if let Some(i_p) = p {
-            parsed += format!("Visibility: more than {} statute miles", info[i_p + 1..sm].parse::<u32>().expect("Couldn't parse visibility")).as_str();
-        } else if let Some(i_m) = m {
-            parsed += format!("Visibility: less than {} statute miles", info[i_m + 1..sm].parse::<u32>().expect("Couldn't parse visibility")).as_str();
+        let visibility_number: f64;
+        //TODO: cut down on extremely repetitive logic
+        if let Some(i_sl) = slash {
+            if let Some(i_m) = m {
+                if let Some(i_sp) = sp {
+                    visibility_number = info[1..i_sp].parse::<f64>().expect("Visib") + (info[i_sp + 1..i_sl].parse::<f64>().expect("Visib") / info[i_sl + 1..sm].parse::<f64>().expect("Visib"));
+                } else {
+                    visibility_number = (info[1..i_sl].parse::<f64>().expect("Visib") / info[i_sl + 1..sm].parse::<f64>().expect("Visib"));
+                }
+            } else if let Some(i_p) = p {
+                if let Some(i_sp) = sp {
+                    visibility_number = info[1..i_sp].parse::<f64>().expect("Visib") + (info[i_sp + 1..i_sl].parse::<f64>().expect("Visib") / info[i_sl + 1..sm].parse::<f64>().expect("Visib"));
+                } else {
+                    visibility_number = (info[1..i_sl].parse::<f64>().expect("Visib") / info[i_sl + 1..sm].parse::<f64>().expect("Visib"));
+                }
+            } else {
+                if let Some(i_sp) = sp {
+                    visibility_number = info[0..i_sp].parse::<f64>().expect("Visib") + (info[i_sp + 1..i_sl].parse::<f64>().expect("Visib") / info[i_sl + 1..sm].parse::<f64>().expect("Visib"));
+                } else {
+                    visibility_number = (info[0..i_sl].parse::<f64>().expect("Visib") / info[i_sl + 1..sm].parse::<f64>().expect("Visib"));
+                }
+            }
         } else {
-            parsed += format!("Visibility: {} statute miles", info[..sm].parse::<u32>().expect("Couldn't parse visibility")).as_str();
+            if let Some(i_m) = m {
+                visibility_number = info[1..sm].parse::<f64>().expect("Unable to parse visibility");
+            } else if let Some(i_p) = p {
+                visibility_number = info[1..sm].parse::<f64>().expect("Unable to parse visibility");
+            } else {
+                visibility_number = info[..sm].parse::<f64>().expect("Unable to parse visibility");
+            }
+        }
+        if let Some(i_p) = p {
+            parsed += format!("Visibility: more than {} statute miles", visibility_number).as_str();
+        } else if let Some(i_m) = m {
+            parsed += format!("Visibility: less than {} statute miles", visibility_number).as_str();
+        } else {
+            parsed += format!("Visibility: {} statute miles", visibility_number).as_str();
         }
         parsed
     }
 }
-//TODO: vertical visib, clr/skc
 pub struct CloudLayer;
 impl Parser for CloudLayer {
-    fn parse(info: String) -> String {
+    fn parse(info: &String) -> String {
         if(&info[..] == "CLR" || &info[..] == "SKC") {
             String::from("No cloud layers observed")
         } else {
             let mut parsed = String::new();
-            let height: u32 = info[3..6].parse::<u32>().expect("Couldn't parse cloud layer height") * 100; //what happens here if clr/skc (index out of bounds)
+            let height: u32 = info[3..6].parse::<u32>().expect("Couldn't parse cloud layer height") * 100;
             match &info[0..=2] {
                 "OVC" => parsed += format!("Overcast clouds at {} ft AGL", height).as_str(),
                 "BKN" => parsed += format!("Broken clouds at {} ft AGL", height).as_str(),
@@ -79,17 +112,23 @@ impl Parser for CloudLayer {
             parsed
         }   
     }
-} 
+}
+pub struct VerticalVisibility;
+impl Parser for VerticalVisibility {
+    fn parse(info: &String) -> String {
+        format!("Vertical visibility: {} ft", &info[2..].parse::<u32>().expect("Couldn't parse vertical visibility") * 100)
+    }
+}
 pub struct Alt;
 impl Parser for Alt {
-    fn parse(info: String) -> String {
+    fn parse(info: &String) -> String {
         let alt = (info[1..].parse::<f64>().expect("Couldn't parse altimeter setting")) / 100.0;
         format!("Altimiter: {} inHg\n", alt)
     }
 }
 pub struct Temps;
 impl Parser for Temps {
-    fn parse(info: String) -> String {
+    fn parse(info: &String) -> String {
         let temp_celsius: i32;
         let dewpoint_celsius: i32;
         match info.len() {
@@ -112,7 +151,7 @@ impl Parser for Temps {
 }
 pub struct Rvr;
 impl Parser for Rvr {
-    fn parse(info: String) -> String {
+    fn parse(info: &String) -> String {
         let mut parsed = String::new();
         let slash = info.find("/").expect("Couldn't parse rvr measurement: \"/\" not found where expected");
         let f = info.find("F").expect("Couldn't parse rvr measurement: \"FT\" not found where expected");
@@ -145,7 +184,7 @@ impl Parser for Rvr {
 }
 pub struct Weather;
 impl Parser for Weather {
-    fn parse(info: String) -> String {
+    fn parse(info: &String) -> String {
         let mut parsed = String::new();
         let mut current_index = 0;
         match &info[0..1] {
@@ -203,83 +242,90 @@ mod tests {
     use crate::us_metar_components::*;
     #[test]
     fn when() {
-        let w = When::parse(String::from("291314Z"));
+        let w = When::parse(&String::from("291314Z"));
         let s = String::from("Taken on the 29th day of the current month at 13:14 UTC");
         assert_eq!(w, s);
     }
     #[test]
     fn wind() {
-        let a = Wind::parse(String::from("08717G24KT"));
+        let a = Wind::parse(&String::from("08717G24KT"));
         let s1 = String::from("Wind direction: 87 degrees\nWind speed: 17 knots, with gusts of 24 knots");
         assert_eq!(a, s1);
-        let b = Wind::parse(String::from("08717KT"));
+        let b = Wind::parse(&String::from("08717KT"));
         let s2 = String::from("Wind direction: 87 degrees\nWind speed: 17 knots");
         assert_eq!(b, s2);
-        let c = Wind::parse(String::from("08717G24KT 086V088"));
-        let s3 = String::from("Dominant wind direction: 87 degrees (varying between 86 and 88 degrees)\nWind speed: 17 knots, with gusts of 24 knots");
+        let c = Wind::parse(&String::from("VRB03G05KT"));
+        let s3 = String::from("Wind direction: variable\nWind speed: 3 knots, with gusts of 5 knots");
         assert_eq!(c, s3);
-        let d = Wind::parse(String::from("VRB03G05KT"));
-        let s4 = String::from("Wind direction: variable\nWind speed: 3 knots, with gusts of 5 knots");
-        assert_eq!(d, s4);
     }
     #[test]
     fn visibility() {
-        let a = Visibility::parse(String::from("9SM"));
+        let a = Visibility::parse(&String::from("9SM"));
         let s1 = String::from("Visibility: 9 statute miles");
         assert_eq!(a, s1);
-        let b = Visibility::parse(String::from("M6SM"));
+        let b = Visibility::parse(&String::from("M6SM"));
         let s2 = String::from("Visibility: less than 6 statute miles");
         assert_eq!(b, s2);
-        let c = Visibility::parse(String::from("P4SM"));
+        let c = Visibility::parse(&String::from("P4SM"));
         let s3 = String::from("Visibility: more than 4 statute miles");
         assert_eq!(c, s3);
     }
     #[test]
     fn cloud_layer() {
-        let a = CloudLayer::parse(String::from("SCT036"));
+        let a = CloudLayer::parse(&String::from("SCT036"));
         let s = String::from("Scattered clouds at 3600 ft AGL");
         assert_eq!(a, s);
     }
     #[test]
     fn altimeter() {
-        let a = Alt::parse(String::from("A2973"));
+        let a = Alt::parse(&String::from("A2973"));
         let s = String::from("Altimiter: 29.73 inHg\n");
         assert_eq!(a, s);
     }
     #[test]
     fn rvr() {
-        let a = Rvr::parse(String::from("R05L/1600FT"));
+        let a = Rvr::parse(&String::from("R05L/1600FT"));
         let s1 = String::from("RVR for Runway 05L: 1600 ft");
         assert_eq!(a, s1);
-        let b = Rvr::parse(String::from("R27/1500V1700FT"));
+        let b = Rvr::parse(&String::from("R27/1500V1700FT"));
         let s2 = String::from("RVR for Runway 27: Between 1500 ft and 1700 ft");
         assert_eq!(b, s2);
-        let c = Rvr::parse(String::from("R31/M1400VP1600FT"));
+        let c = Rvr::parse(&String::from("R31/M1400VP1600FT"));
         let s3 = String::from("RVR for Runway 31: Between less than 1400 ft and more than 1600 ft");
         assert_eq!(c, s3);
     }
     #[test]
     fn temps() {
-        let a = Temps::parse(String::from("17/14"));
+        let a = Temps::parse(&String::from("17/14"));
         let s1 = String::from("Temperature: 17 Celsius\nDewpoint: 14 Celsius");
         assert_eq!(a, s1);
-        let b = Temps::parse(String::from("07/M03"));
+        let b = Temps::parse(&String::from("07/M03"));
         let s2 = String::from("Temperature: 7 Celsius\nDewpoint: -3 Celsius");
         assert_eq!(b, s2);
-        let c = Temps::parse(String::from("M09/M10"));
+        let c = Temps::parse(&String::from("M09/M10"));
         let s3 = String::from("Temperature: -9 Celsius\nDewpoint: -10 Celsius");
         assert_eq!(c, s3);
     }
     #[test] 
     fn weather() {
-        let a = Weather::parse(String::from("+FZRA"));
+        let a = Weather::parse(&String::from("+FZRA"));
         let s1 = String::from("Heavy Freezing Rain ");
         assert_eq!(a, s1);
-        let b = Weather::parse(String::from("SN"));
+        let b = Weather::parse(&String::from("SN"));
         let s2 = String::from("Snow ");
         assert_eq!(b, s2);
-        let c = Weather::parse(String::from("VCTS"));
+        let c = Weather::parse(&String::from("VCTS"));
         let s3 = String::from("In the vicinity, Thunderstorm(s) ");
         assert_eq!(c, s3);
+    }
+    #[test]
+    fn varying_wind_dir() {
+        let s = String::from("180V240");
+        assert_eq!(String::from("Wind direction varying between 180 and 240 degrees"), VariableWindDirection::parse(&s));
+    }
+    #[test]
+    fn vertical_visib() {
+        let s = String::from("VV003");
+        assert_eq!(VerticalVisibility::parse(&s), String::from("Vertical visibility: 300 ft"));
     }
 }
