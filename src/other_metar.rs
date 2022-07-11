@@ -1,4 +1,0 @@
-/*
-extract stuff that stays same away from american metar file to common one
-then write world metar stuff here
-*/
