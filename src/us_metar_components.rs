@@ -1,6 +1,9 @@
 //TODO: cleanup- reduce repetitive calls, better on borrowing/refs, better error handling, format string slices
 //This file contains items needed to parse encoded groups that are found only in US METAR repots
 use crate::world_metar::Parser;
+pub trait ParserForRemarks {
+    fn parse_rmk(info: &String) -> String; //to make it clear that a remark is being parsed
+}
 pub struct USVisibility;
 impl Parser for USVisibility {
     fn parse(info: &String) -> String {
@@ -114,6 +117,80 @@ impl Parser for USRvr {
             }
         }
         parsed
+    }
+}
+pub struct SensorType;
+impl ParserForRemarks for SensorType {
+    fn parse_rmk(info: &String) -> String {
+        match &info[2..] {
+            "1" => String::from("The sensor used to observe the METAR report above is AO1, meaning it lacks a precipitation discriminant"),
+            "2" => String::from("The sensor used to observe the METAR report above is AO2, meaning it contains a precipitation discriminant"),
+            _ => String::from("Couldn't parse sensor type data"),
+        }
+    }
+}
+pub struct SeaLevelPressure;
+impl ParserForRemarks for SeaLevelPressure {
+    fn parse_rmk(info: &String) -> String {
+        let raw = &info[3..].parse::<f64>();
+        if let Ok(raw_f64) = raw {
+            let slp: f64;
+            match &info[3..4] {
+                "9" => slp = (raw_f64 / 10.0) + 900.0,
+                _ => slp = (raw_f64 / 10.0) + 1000.0,
+            }
+            format!("Sea level pressure: {} hPa", slp)
+        } else {
+            String::from("No sea level pressure")
+        }
+    }
+}
+pub struct AdditionalTemperatureData;
+impl ParserForRemarks for AdditionalTemperatureData {
+    fn parse_rmk(info: &String) -> String {
+        let temp: f64;
+        let dp: f64;
+        match &info[1..2] {
+            "0" => temp = &info[2..=4].parse::<f64>().expect("Error parsing temperature remark") / 10.0,
+            "1" => temp = -(&info[2..=4].parse::<f64>().expect("Error parsing temperature remark")) / 10.0,
+            _ => return String::new(),
+        }
+        match &info[5..6] {
+            "0" => dp = &info[6..].parse::<f64>().expect("Error parsing temperature remark") / 10.0,
+            "1" => dp = -(&info[6..].parse::<f64>().expect("Error parsing temperature remark")) / 10.0,
+            _ => return String::new(),
+        }
+        format!("Temperature: {} degrees celsius, dewpoint: {} degrees celsius", temp, dp)
+    }
+}
+pub struct PeakWind;
+impl ParserForRemarks for PeakWind {
+    fn parse_rmk(info: &String) -> String {
+        let slash = info.find("/").expect("Unable to parse peak wind");
+        let dir = &info[7..=9].parse::<u32>().expect("Unable to parse peak wind direction");
+        let spd = &info[10..slash].parse::<u32>().expect("Unable to parse peak wind speed");
+        if info.len() <= 16 {
+            let min = &info[slash + 1..].parse::<u32>().expect("Unable to parse peak wind time");
+            format!("Peak wind: {} degrees at {} knots, {} minutes from the current hour", dir, spd, min)
+        } else {
+            let hour = &info[slash + 1..=slash + 2].parse::<u32>().expect("Unable to parse peak wind time");
+            let min = &info[slash + 3..].parse::<u32>().expect("Unable to parse peak wind time");
+            format!("Peak wind: {} degrees at {} knots, {}:{} UTC", dir, spd, hour, min)
+        }
+    }
+}
+pub struct WindShift;
+impl ParserForRemarks for WindShift {
+    fn parse_rmk(info: &String) -> String {
+        let sp = info.find(" ").expect("Unable to parse wind shift");
+        if info.len() <= 8 {
+            let min = &info[sp + 1..].parse::<u32>().expect("Unable to parse wind shift time");
+            format!("Wind shift beginning {} minutes after the current hour", min)
+        } else {
+            let hour = &info[sp + 1..= sp + 2].parse::<u32>().expect("Unable to parse wind shift time");
+            let min = &info[sp + 3..= sp + 4].parse::<u32>().expect("Unable to parse wind shift time");
+            format!("Wind shift beginning at {}:{} UTC", hour, min)
+        }
     }
 }
 mod tests {

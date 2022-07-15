@@ -6,10 +6,10 @@ pub trait Parser {
 pub struct When;
 impl Parser for When {
     fn parse(info: &String) -> String {
-        let day = info[..2].parse::<u32>().expect("Error parsing day METAR was observed");
-        let time = info[2..6].parse::<u32>().expect("Error parsing time METAR was observed");
-        let hour = time / 100;
-        format!("Taken on the {}th day of the current month at {}:{} UTC", day, hour, time - (hour * 100))
+        let day = &info[..2].parse::<u32>().expect("Error parsing day METAR was observed");
+        let hour = &info[2..4].parse::<u32>().expect("Error parsing time METAR was observed");
+        let minute = &info[5..=6].parse::<u32>().expect("Error parsing time METAR was observed");
+        format!("Taken on the {}th day of the current month at {}:{} UTC", day, hour, minute)
     }
 }
 pub struct Wind;
