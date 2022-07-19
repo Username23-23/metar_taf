@@ -1,11 +1,11 @@
 //TODO: cleanup- reduce repetitive calls, better on borrowing/refs, better error handling, format string slices
 //This file contains items needed to parse encoded groups that are found only in US METAR repots
-use crate::world_metar::Parser;
-pub trait ParserForRemarks {
+use crate::world_metar::Parse;
+pub trait ParseForRemarks {
     fn parse_rmk(info: &String) -> String; //to make it clear that a remark is being parsed
 }
 pub struct USVisibility;
-impl Parser for USVisibility {
+impl Parse for USVisibility {
     fn parse(info: &String) -> String {
         let mut parsed = String::new();
         let sm = info.find("S").expect("Couldn't parse visibility");
@@ -61,7 +61,7 @@ impl Parser for USVisibility {
     }
 }
 pub struct USCloudLayer;
-impl Parser for USCloudLayer {
+impl Parse for USCloudLayer {
     fn parse(info: &String) -> String {
         if(&info[..] == "CLR" || &info[..] == "SKC") {
             String::from("No cloud layers observed")
@@ -80,14 +80,14 @@ impl Parser for USCloudLayer {
     }
 }
 pub struct Alt;
-impl Parser for Alt {
+impl Parse for Alt {
     fn parse(info: &String) -> String {
         let alt = (info[1..].parse::<f64>().expect("Couldn't parse altimeter setting")) / 100.0;
         format!("Altimiter: {} inHg\n", alt)
     }
 }
 pub struct USRvr;
-impl Parser for USRvr {
+impl Parse for USRvr {
     fn parse(info: &String) -> String {
         let mut parsed = String::new();
         let slash = info.find("/").expect("Couldn't parse rvr measurement: \"/\" not found where expected");
@@ -120,7 +120,7 @@ impl Parser for USRvr {
     }
 }
 pub struct SensorType;
-impl ParserForRemarks for SensorType {
+impl ParseForRemarks for SensorType {
     fn parse_rmk(info: &String) -> String {
         match &info[2..] {
             "1" => String::from("The sensor used to observe the METAR report above is AO1, meaning it lacks a precipitation discriminant"),
@@ -130,7 +130,7 @@ impl ParserForRemarks for SensorType {
     }
 }
 pub struct SeaLevelPressure;
-impl ParserForRemarks for SeaLevelPressure {
+impl ParseForRemarks for SeaLevelPressure {
     fn parse_rmk(info: &String) -> String {
         let raw = &info[3..].parse::<f64>();
         if let Ok(raw_f64) = raw {
@@ -146,7 +146,7 @@ impl ParserForRemarks for SeaLevelPressure {
     }
 }
 pub struct AdditionalTemperatureData;
-impl ParserForRemarks for AdditionalTemperatureData {
+impl ParseForRemarks for AdditionalTemperatureData {
     fn parse_rmk(info: &String) -> String {
         let temp: f64;
         let dp: f64;
@@ -164,7 +164,7 @@ impl ParserForRemarks for AdditionalTemperatureData {
     }
 }
 pub struct PeakWind;
-impl ParserForRemarks for PeakWind {
+impl ParseForRemarks for PeakWind {
     fn parse_rmk(info: &String) -> String {
         let slash = info.find("/").expect("Unable to parse peak wind");
         let dir = &info[7..=9].parse::<u32>().expect("Unable to parse peak wind direction");
@@ -180,7 +180,7 @@ impl ParserForRemarks for PeakWind {
     }
 }
 pub struct WindShift;
-impl ParserForRemarks for WindShift {
+impl ParseForRemarks for WindShift {
     fn parse_rmk(info: &String) -> String {
         let sp = info.find(" ").expect("Unable to parse wind shift");
         if info.len() <= 8 {

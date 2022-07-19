@@ -1,19 +1,19 @@
 //TODO: cleanup- reduce repetitive calls, better on borrowing/refs, better error handling, format string slices
 //This file contains items needed to parse encoded groups that are found in METAR reports in countries other than the US and Canada
-pub trait Parser {
+pub trait Parse {
     fn parse(info: &String) -> String;
 }
 pub struct When;
-impl Parser for When {
+impl Parse for When {
     fn parse(info: &String) -> String {
-        let day = &info[..2].parse::<u32>().expect("Error parsing day METAR was observed");
-        let hour = &info[2..4].parse::<u32>().expect("Error parsing time METAR was observed");
-        let minute = &info[5..=6].parse::<u32>().expect("Error parsing time METAR was observed");
+        let day = &info[..=1].parse::<u32>().expect("Error parsing day METAR was observed");
+        let hour = &info[2..=3].parse::<u32>().expect("Error parsing time METAR was observed");
+        let minute = &info[4..=5].parse::<u32>().expect("Error parsing time METAR was observed");
         format!("Taken on the {}th day of the current month at {}:{} UTC", day, hour, minute)
     }
 }
 pub struct Wind;
-impl Parser for Wind {
+impl Parse for Wind {
     fn parse(info: &String) -> String {
         let mut parsed = String::new();
         let d = info[..=2].parse::<u32>(); // err here means dir was "VRB"
@@ -33,14 +33,14 @@ impl Parser for Wind {
     }
 }
 pub struct VariableWindDirection;
-impl Parser for VariableWindDirection {
+impl Parse for VariableWindDirection {
     fn parse(info: &String) -> String {
         let v = info.find("V").expect("Couldn't parse varying wind direction");
         format!("Wind direction varying between {} and {} degrees", info[..v].parse::<u32>().expect("Couldn't parse varying wind direction"), info[v + 1..].parse::<u32>().expect("Couldn't parse varying wind direction"))
     }
 }
 pub struct Temps;
-impl Parser for Temps {
+impl Parse for Temps {
     fn parse(info: &String) -> String {
         let temp_celsius: i32;
         let dewpoint_celsius: i32;
@@ -63,8 +63,11 @@ impl Parser for Temps {
     }
 }
 pub struct Weather;
-impl Parser for Weather {
+impl Parse for Weather {
     fn parse(info: &String) -> String {
+        if(&info[..] == "NSW") {
+            return String::from("No significant weather");
+        }
         let mut parsed = String::new();
         let mut current_index = 0;
         match &info[0..1] {
@@ -119,7 +122,7 @@ impl Parser for Weather {
     }
 }
 pub struct CloudLayer;
-impl Parser for CloudLayer {
+impl Parse for CloudLayer {
     fn parse(info: &String) -> String {
         if(&info[..] == "NSC" || &info[..] == "NCD") {
             String::from("No cloud layers observed")
@@ -155,20 +158,20 @@ impl Parser for CloudLayer {
     }
 }
 pub struct VerticalVisibility;
-impl Parser for VerticalVisibility {
+impl Parse for VerticalVisibility {
     fn parse(info: &String) -> String {
         format!("Vertical visibility: {} ft", &info[2..].parse::<u32>().expect("Couldn't parse vertical visibility") * 100)
     }
 }
 pub struct Qnh;
-impl Parser for Qnh {
+impl Parse for Qnh {
     fn parse(info: &String) -> String {
         let qnh: u32 = info[1..].parse::<u32>().expect("Could not parse QNH group");
         format!("QNH: {} hPa", qnh)
     }
 }
 pub struct Visibility;
-impl Parser for Visibility {
+impl Parse for Visibility {
     fn parse(info: &String) -> String {
         let visib_m = info[..].parse::<u32>().expect("Couldn't parse visibility");
         if(visib_m == 9999) {
@@ -178,7 +181,7 @@ impl Parser for Visibility {
     }
 }
 pub struct DirectionalVisibility;
-impl Parser for DirectionalVisibility {
+impl Parse for DirectionalVisibility {
     fn parse(info: &String) -> String {
         let dir_visib_m = info[..4].parse::<u32>().expect(/*"Couldn't parse directional visibility "*/&info[..]);
         match &info[4..] {
@@ -196,7 +199,7 @@ impl Parser for DirectionalVisibility {
 }
 //TODO: cleaner solution for trend 
 pub struct Rvr;
-impl Parser for Rvr {
+impl Parse for Rvr {
     fn parse(info: &String) -> String {
         //trend is broken
         let mut parsed = String::new();
@@ -239,6 +242,120 @@ impl Parser for Rvr {
             }
         }
         parsed
+    }
+}
+pub struct RecentWeather;
+impl Parse for RecentWeather {
+    fn parse(info: &String) -> String {
+        format!("Recent weather: {}", Weather::parse(&String::from(&info[2..])))
+    }
+}
+pub struct WindshearInformation;
+impl Parse for WindshearInformation {
+    fn parse(info: &String) -> String {
+        let r = info.find("R");
+        if let Some(i_r) = r {
+            format!("Windshear on Runway {}", &info[i_r + 1..])
+        } else {
+            String::from("Windshear on all runways")
+        }
+    }
+}
+pub struct SeaInfo;
+impl Parse for SeaInfo {
+    fn parse(info: &String) -> String {
+        let slash = info.find("/").expect("Unable to parse sea info");
+        let temp = &info[1..slash].parse::<u32>().expect("Unable to find sea surface temperature");
+        let h = info.find("H");
+        if let Some(i_h) = h {
+            let wave_height = &info[slash + 2..].parse::<u32>().expect("Unable to parse wave height");
+            format!("Sea surface temperature: {} degrees Celsius, Wave height: {} decimeters", temp, wave_height)
+        } else {
+            match &info[slash + 2..] {
+                "0" => format!("Sea surface temperature: {} degrees Celsius, Sea calm and glassy", temp),
+                "1" => format!("Sea surface temperature: {} degrees Celsius, Sea calm and rippled", temp),
+                "2" => format!("Sea surface temperature: {} degrees Celsius, Sea smooth with wavelets", temp),
+                "3" => format!("Sea surface temperature: {} degrees Celsius, Sea slight", temp),
+                "4" => format!("Sea surface temperature: {} degrees Celsius, Sea moderate", temp),
+                "5" => format!("Sea surface temperature: {} degrees Celsius, Sea rough", temp),
+                "6" => format!("Sea surface temperature: {} degrees Celsius, Sea very rough", temp),
+                "7" => format!("Sea surface temperature: {} degrees Celsius, Sea high", temp),
+                "8" => format!("Sea surface temperature: {} degrees Celsius, Sea very high", temp),
+                "9" => format!("Sea surface temperature: {} degrees Celsius, Sea phenomenal", temp),
+                _ => format!("Sea surace temperature: {} degrees Celsius", temp),
+            }
+        }
+    }
+}
+pub struct RunwayState;
+impl Parse for RunwayState {
+    fn parse(info: &String) -> String {
+        if(&info[2..] == "SNOCLO") {
+            return String::from("Runway closed due to snow");
+        }
+        let slash = info.find("/").expect("Unable to parse runway state");
+        let mut parsed = String::new();
+        parsed.push_str("Runway ");
+        parsed.push_str(&info[1..slash]);
+        //0919, 0519, 1079 and 0366
+        match &info[slash + 1..slash + 2] {
+            "0" => parsed.push_str(" deposits: clear and dry\n"),
+            "1" => parsed.push_str(" deposits: damp\n"),
+            "2" => parsed.push_str(" deposits: water patches\n"),
+            "3" => parsed.push_str(" deposits: rime and frost\n"),
+            "4" => parsed.push_str(" deposits: dry snow\n"),
+            "5" => parsed.push_str(" deposits: wet snow\n"),
+            "6" => parsed.push_str(" deposits: slush\n"),
+            "7" => parsed.push_str(" deposits: ice"),
+            "8" => parsed.push_str(" deposits: compacted/rolled snow\n"),
+            "9" => parsed.push_str(" deposits: frozen nuts or ridges\n"),
+            "/" => parsed.push_str(" deposits: type not reported\n"),
+            _ => (),
+        }
+        match &info[slash + 2..slash + 3] {
+            "1" => parsed.push_str("Extent of contamination: Less than 10% of runway\n"),
+            "2" => parsed.push_str("Extent of contamination: 11-25% of runway\n"),
+            "5" => parsed.push_str("Extent of contamination: 26-50% of runway\n"),
+            "9" => parsed.push_str("Extent of contamination: More than 51% of runway\n"),
+            "/" => parsed.push_str("Extent of contamination: not reported\n"),
+            _ => (),
+        }
+        let depth = &info[slash + 3..=slash + 4].parse::<u32>();
+        if let Ok(d) = depth {
+            if(*d <= 91) {
+                parsed.push_str("Deposit depth: ");
+                parsed.push_str(&info[slash + 3..=slash + 4]);
+                parsed.push_str(" milimeters\n");
+            } else {
+                match d {
+                    92 => parsed.push_str("Deposit depth: 10 cm\n"), 
+                    93 => parsed.push_str("Deposit depth: 15 cm\n"),
+                    94 => parsed.push_str("Deposit depth: 20 cm\n"),
+                    95 => parsed.push_str("Deposit depth: 25 cm\n"),
+                    96 => parsed.push_str("Deposit depth: 30 cm\n"),
+                    97 => parsed.push_str("Deposit depth: 35 cm\n"),
+                    98 => parsed.push_str("Deposit depth: 40 cm\n"),
+                    99 => parsed.push_str("Runway inoperational due to deposit\n"),
+                    _  => parsed.push_str(""),
+                }
+            }
+        } else {
+            parsed.push_str("Unreported deposit depth\n");
+        }
+        return parsed;
+    }
+}
+pub struct TrendTime;
+impl Parse for TrendTime {
+    fn parse(info: &String) -> String {
+        let hour = &info[2..=3].parse::<u32>().expect("Unable to parse trend time");
+        let minute = &info[4..].parse::<u32>().expect("Unable to parse trend time");
+        match &info[0..=1] {
+            "FM" => format!("From {}:{} UTC", hour, minute),
+            "AT" => format!("At {}:{} UTC", hour, minute),
+            "TL" => format!("Until {}:{} UTC", hour, minute),
+            _ => String::new()
+        }
     }
 }
 mod tests {
