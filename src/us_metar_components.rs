@@ -75,6 +75,13 @@ impl Parse for USCloudLayer {
                 "FEW" => parsed += format!("Few clouds at {} ft AGL", height).as_str(),
                 _ => parsed.push_str("No cloud layers observed"),
             }
+            if(info.len() > 6) {
+                match &info[6..=7] {
+                    "CB" => parsed.push_str("\nThe layer above consists of cumulonimbus clouds"),
+                    "TC" => parsed.push_str("\nThe layer above consists of towering cumulus clouds"),
+                    _ => (),
+                }
+            }
             parsed
         }   
     }
