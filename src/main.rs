@@ -1,6 +1,7 @@
 pub mod us_metar_components;
 pub mod world_metar;
 pub mod parser;
+pub mod taf_only_groups;
 use crate::parser::*;
 fn main() {
     parse_metar("KTKI 071653Z 20007KT 10SM CLR 35/18 A2999 RMK AO2 SLP147 T03500178");
