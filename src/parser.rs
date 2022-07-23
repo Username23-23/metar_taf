@@ -1,6 +1,7 @@
 //TODO: deal with ownership/memory better, RMK section, think about SPECI and amendments, parse as string slices
 use crate::us_metar_components::*;
 use crate::world_metar::*;
+use crate::taf_only_groups::*;
 pub fn parse_metar(met: &str) {
     if(&met[0..=4] == "METAR") {
         match &met[6..7] {
@@ -221,5 +222,45 @@ fn parse_world(met: &str) {
             println!("{}", SeaInfo::parse(element));
         }
         e_i += 1;
+    }
+}
+pub fn parse_us_taf(t: &str) {
+    let mut primary: Vec<String> = Vec::new();    
+    let l = t.split_whitespace();
+    for s in l { 
+        if s == "TAF" || s == "AMD" || s == "COR" {
+            println!("{}", s);
+        } else if s == "RMK" {
+            break;
+        } else {
+            primary.push(String::from(s));
+        }
+    }
+    println!("Station: {}", primary.get(0).unwrap());
+    println!("{}", When::parse(primary.get(1).unwrap()));
+    println!("{}", ValidityPeriod::parse(primary.get(2).unwrap()));
+    let mut c_i = 3;
+    while(c_i < primary.len()) {
+        let element = primary.get(c_i).unwrap();
+        let first = &element[0..1];
+        let l = element.len();
+        if l == 6 || first == "S" || first == "C" {
+            println!("{}", USCloudLayer::parse(element));
+        } else if first == "V" && l == 5 {
+            println!("{}", VerticalVisibility::parse(element));
+        } else if l >= 7 && &element[l - 1..] == "T" {
+            println!("{}", Wind::parse(element));
+        } else if &element[0..=1] == "WS" {
+            println!("{}", LowLevelWindshear::parse(element));
+        } else if l == 9 && &element[4..5] == "/" {
+            println!("{}", ValidityPeriod::parse(element));
+        } else if(l == 5 && (first == "B" || first == "T")) || (first == "P" && l == 6) || (first == "F" && l > 6) {
+            println!("{}", ChangeIndicators::parse(element));
+        } else if l >= 3 && &element[l - 2..] == "SM" {
+            println!("{}", USVisibility::parse(element));
+        } else {
+            println!("{}", Weather::parse(element));
+        }
+        c_i += 1;
     }
 }
