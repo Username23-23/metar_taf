@@ -2,31 +2,24 @@
 use crate::us_metar_components::*;
 use crate::world_metar::*;
 use crate::taf_only_groups::*;
+pub fn metar_or_taf(s: &str) {
+    if(&s[0..=4] == "METAR") {
+        parse_metar(&s[6..]);
+    } else if(&s[0..=2] == "TAF") {
+        parse_taf(&s[4..]);
+    }
+}
 pub fn parse_metar(met: &str) {
-    if(&met[0..=4] == "METAR") {
-        match &met[6..7] {
-            "K" | "P" => parse_us(met),
-            "C" => parse_other_north_american(met),
-            "M" => {
-                match &met[7..8] {
-                    "M" => parse_other_north_american(met),
-                    _ => parse_world(met),
-                }
-            },
-            _ => parse_world(met),
-        }
-    } else {
-        match &met[0..1] {
-            "K" => parse_us(met),
-            "C" => parse_other_north_american(met),
-            "M" => {
-                match &met[1..2] {
-                    "M" => parse_other_north_american(met),
-                    _ => parse_world(met),
-                }
-            },
-            _ => parse_world(met),
-        }
+    match &met[0..1] {
+        "K" => parse_us(met),
+        "C" => parse_other_north_american(met),
+        "M" => {
+            match &met[1..2] {
+                "M" => parse_other_north_american(met),
+                 _ => parse_world(met),
+            }
+        },
+        _ => parse_world(met),
     }
 }
 fn parse_us(met: &str)  {
@@ -96,6 +89,7 @@ fn parse_us(met: &str)  {
         }
         i += 1;
     }
+    println!("{}", "");
 }
 fn parse_other_north_american(met: &str) {
     let metar = String::from(met);
@@ -140,6 +134,7 @@ fn parse_other_north_american(met: &str) {
     println!("{}", Temps::parse(primary.get(curr_index).unwrap()));
     curr_index += 1;
     println!("{}", Alt::parse(primary.get(curr_index).unwrap()));
+    println!("{}", "");
 }
 fn parse_world(met: &str) {
     let metar = String::from(met);
@@ -223,6 +218,14 @@ fn parse_world(met: &str) {
         }
         e_i += 1;
     }
+    println!("{}", "");
+}
+//TODO: handle canadian and mexican TAF's
+pub fn parse_taf(t: &str) {
+    match &t[0..1]  {
+        "K" | "P" => parse_us_taf(t),
+        _ => parse_other_taf(t),
+    }
 }
 pub fn parse_us_taf(t: &str) {
     let mut primary: Vec<String> = Vec::new();    
@@ -263,4 +266,48 @@ pub fn parse_us_taf(t: &str) {
         }
         c_i += 1;
     }
+    println!("{}", "");
+}
+pub fn parse_other_taf(t: &str) {
+    let mut primary: Vec<String> = Vec::new();    
+    let l = t.split_whitespace();
+    for s in l { 
+        if s == "TAF" || s == "AMD" || s == "COR" {
+            println!("{}", s);
+        } else if s == "RMK" {
+            break;
+        } else {
+            primary.push(String::from(s));
+        }
+    }
+    println!("Station: {}", primary.get(0).unwrap());
+    println!("{}", When::parse(primary.get(1).unwrap()));
+    println!("{}", ValidityPeriod::parse(primary.get(2).unwrap()));
+    let mut c_i = 3;
+    while(c_i < primary.len()) {
+        let element = primary.get(c_i).unwrap();
+        let first = &element[0..1];
+        let l = element.len();
+        if l == 6 || (first == "N" && l == 3) {
+            println!("{}", CloudLayer::parse(element));
+        } else if first == "V" && l == 5 {
+            println!("{}", VerticalVisibility::parse(element));
+        } else if l >= 7 && &element[l - 1..] == "T" {
+            println!("{}", Wind::parse(element));
+        } /*else if &element[0..=1] == "WS" { unsure
+            println!("{}", LowLevelWindshear::parse(element));
+        }*/ else if l == 9 && &element[4..5] == "/" {
+            println!("{}", ValidityPeriod::parse(element));
+        } else if(l == 5 && (first == "B" || first == "T")) || (first == "P" && l == 6) || (first == "F" && l > 6) {
+            println!("{}", ChangeIndicators::parse(element));
+        } else if l == 4 { //TODO: directional visibility? 
+            println!("{}", Visibility::parse(element));
+        } else if &element[..] == "CAVOK" {
+            println!("No clouds below 5000 ft, no significant weather phenomena, and visibility at least 10 km");
+        } else {
+            println!("{}", Weather::parse(element));
+        }
+        c_i += 1;
+    }
+    println!("{}", "");
 }

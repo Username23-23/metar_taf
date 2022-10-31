@@ -1,4 +1,4 @@
-//TODO: cleanup- reduce repetitive calls, better on borrowing/refs, better error handling, format string slices
+//TODO: cleanup- reduce repetitive calls, better on borrowing/refs, better error handling, format string slices, wind in MPS
 //This file contains items needed to parse encoded groups that are found in METAR reports in countries other than the US and Canada
 pub trait EncodedGroup {
     fn parse(raw_data: &String) -> String;
@@ -173,7 +173,7 @@ impl EncodedGroup for Qnh {
 pub struct Visibility;
 impl EncodedGroup for Visibility {
     fn parse(raw_data: &String) -> String {
-        let visib_m = raw_data[..].parse::<u32>().expect("Couldn't parse visibility");
+        let visib_m = raw_data[..].parse::<u32>().expect("Couldn't parse visibility - not a number");
         if(visib_m == 9999) {
             return String::from("Visibility: 10 km or more");
         }
